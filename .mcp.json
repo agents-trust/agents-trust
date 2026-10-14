@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agents-trust": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/bundle/agents-trust-mcp.mjs"],
+      "env": {
+        "AGENTS_TRUST_EVM_PRIVATE_KEY": "${user_config.evm_private_key}",
+        "AGENTS_TRUST_MAX_FEE_USDC": "${user_config.max_fee_usdc}"
+      }
+    }
+  }
+}

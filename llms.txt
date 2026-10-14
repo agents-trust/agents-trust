@@ -1,0 +1,27 @@
+# Agents Trust
+
+> Find a paid API for a task. One x402-paid GET returns ranked candidate APIs with price, payment network, invocation details and live payment-challenge evidence. 0.01 USDC per query on Base or Solana; an empty result is not charged. No key or signup.
+
+Call: GET https://api.agents-trust.com/recommend?need=<phrase>&limit=<1-5>&view=compact
+
+An unpaid GET answers 402 with an empty body. The terms are in the base64 PAYMENT-REQUIRED header (x402 v2). Replay the identical request with PAYMENT-SIGNATURE from your own wallet. The paid answer arrives before settlement with x-at-payment-attempt-id; GET /receipt?payment_attempt_id=<id> is free. Always send need: a bare /recommend returns an unpayable quote. The needs "weather", "crypto prices" and "web search" are free demos.
+
+## Docs
+
+- [SKILL.md](https://github.com/agents-trust/agents-trust/blob/main/skills/agents-trust/SKILL.md): how to call Recommend, parameters, cost, reading the answer
+- [Payment flow](https://github.com/agents-trust/agents-trust/blob/main/skills/agents-trust/references/payment-flow.md): the 402 challenge, paid clients in Python and TypeScript, receipts
+- [Errors](https://github.com/agents-trust/agents-trust/blob/main/skills/agents-trust/references/errors.md): every status and error code with its fix
+- [Response fields](https://github.com/agents-trust/agents-trust/blob/main/skills/agents-trust/references/response-fields.md): recommend.v2 and legacy picks
+- [OpenAPI](https://api.agents-trust.com/openapi.json): machine contract, live
+
+## Examples
+
+- [curl quote](https://github.com/agents-trust/agents-trust/blob/main/examples/curl/quote.sh): unpaid, prints the terms and stops
+- [Python](https://github.com/agents-trust/agents-trust/tree/main/examples/python): quote.py (unpaid), paid.py (your wallet)
+- [TypeScript](https://github.com/agents-trust/agents-trust/tree/main/examples/typescript): quote.ts (unpaid), paid.ts (your wallet)
+- [MCP server](https://github.com/agents-trust/agents-trust/tree/main/mcp): recommend and get_receipt tools; quote-only without a wallet
+
+## Optional
+
+- [Full reference](https://agents-trust.com/docs/)
+- [Methodology](https://agents-trust.com/about#methodology): evidence tiers are provisional, not an endorsement

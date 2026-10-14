@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.agents-trust/agents-trust",
+  "title": "Agents Trust",
+  "description": "Find a paid x402 API for a task: ranked picks with price, network and live evidence.",
+  "repository": { "url": "https://github.com/agents-trust/agents-trust", "source": "github", "subfolder": "mcp" },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@agents-trust/mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        { "name": "AGENTS_TRUST_EVM_PRIVATE_KEY", "description": "Optional. Your Base wallet key; without it the server only quotes and never pays.", "isRequired": false, "isSecret": true },
+        { "name": "AGENTS_TRUST_MAX_FEE_USDC", "description": "Optional. Max Agents Trust fee per query in USDC. Default 0.01.", "isRequired": false, "isSecret": false }
+      ]
+    }
+  ]
+}
