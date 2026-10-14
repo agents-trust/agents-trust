@@ -1,0 +1,41 @@
+{
+  "name": "agents-trust",
+  "displayName": "Agents Trust",
+  "version": "0.1.0",
+  "description": "Find a paid API for a task: ranked x402-paid APIs with price, payment network, invocation details and live payment-challenge evidence. Quotes without a wallet; pays only with your own wallet under your own cap.",
+  "author": {
+    "name": "Agents Trust",
+    "email": "hello@agents-trust.com",
+    "url": "https://agents-trust.com"
+  },
+  "homepage": "https://agents-trust.com/docs/",
+  "repository": "https://github.com/agents-trust/agents-trust",
+  "license": "MIT",
+  "keywords": [
+    "x402",
+    "api-discovery",
+    "paid-api",
+    "recommend",
+    "mcp"
+  ],
+  "userConfig": {
+    "evm_private_key": {
+      "type": "string",
+      "title": "Base wallet private key (optional)",
+      "description": "Leave empty for quote-only mode: the recommend tool then never pays. If set, it pays the Agents Trust fee in USDC on Base from this wallet, up to the caps below. Use a dedicated hot wallet with a small balance.",
+      "sensitive": true
+    },
+    "max_fee_usdc": {
+      "type": "string",
+      "title": "Max fee per query (USDC)",
+      "description": "The highest Agents Trust fee the tool may sign for one query. The fee is currently 0.01 USDC; the cap leaves room for a price change.",
+      "default": "0.05"
+    },
+    "max_total_usdc": {
+      "type": "string",
+      "title": "Max total spend while running (USDC)",
+      "description": "The most the tool may spend in total before the server restarts.",
+      "default": "0.25"
+    }
+  }
+}

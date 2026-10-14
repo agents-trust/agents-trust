@@ -1,0 +1,52 @@
+{
+  "name": "@agents-trust/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Agents Trust Recommend: find a paid x402 API for a task. Quotes without a wallet; pays only with your own wallet under your own cap.",
+  "license": "MIT",
+  "mcpName": "io.github.agents-trust/agents-trust",
+  "type": "module",
+  "bin": {
+    "agents-trust-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "bundle",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "bundle": "esbuild src/index.ts --bundle --minify --platform=node --format=esm --target=node20 --outfile=bundle/agents-trust-mcp.mjs --metafile=node_modules/.bundle-meta.json --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --log-level=warning && node scripts/notices.mjs",
+    "start": "node dist/index.js",
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.mjs",
+    "smoke": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@x402/evm": "2.28.0",
+    "@x402/fetch": "2.28.0",
+    "viem": "2.57.6",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "esbuild": "^0.28.2",
+    "typescript": "5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agents-trust/agents-trust.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://agents-trust.com/docs/",
+  "keywords": [
+    "mcp",
+    "x402",
+    "api-discovery",
+    "agents",
+    "recommend"
+  ]
+}

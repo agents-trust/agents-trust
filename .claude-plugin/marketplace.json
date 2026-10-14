@@ -1,0 +1,8 @@
+{
+  "name": "agents-trust",
+  "description": "Agents Trust: find a paid API for a task.",
+  "owner": { "name": "Agents Trust", "email": "hello@agents-trust.com" },
+  "plugins": [
+    { "name": "agents-trust", "source": "./", "description": "Recommend skill plus a quote-first MCP server for Agents Trust." }
+  ]
+}
