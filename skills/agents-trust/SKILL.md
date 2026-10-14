@@ -117,3 +117,5 @@ own cap. `get_receipt` is free.
 
 Full reference: https://agents-trust.com/docs/ · Contact: hello@agents-trust.com
 (include `x-at-request-id`; never send keys or signatures).
+
+For the pending response-value migration and compatibility window, see [response value transition](references/response-value-transition.md).
