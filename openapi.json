@@ -1,8 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Agents Trust API",
+    "title": "Agents Trust API Search",
     "version": "2.0.0",
+    "description": "Ask which paid API fits your task; get ranked candidates with URL, price, payment network, delivery evidence and risk flags. 0.01 USDC on Base or Solana. Free catalog lookups return catalog facts and public aggregates. Per-provider and per-endpoint scores, ranking diagnostics and paid delivery evidence are available through paid Inspect.",
     "contact": {
       "email": "hello@agents-trust.com"
     }
@@ -17,13 +18,17 @@
       "get": {
         "operationId": "recommend",
         "summary": "Find ranked x402 APIs for a task, with price, payment network, invocation details and live payment-challenge checks.",
-        "description": "Costs 0.01 USDC over x402 outside the free demo set. A verified non-demo search with one or more recommendations returns its answer before settlement completes. Read x-at-payment-attempt-id from the paid 200 and use the free /receipt route for the eventual result. Empty results, invalid, rate-limited and unavailable searches are not settled. Every scalar parameter must appear once. Payment challenge evidence does not verify paid delivery.",
+        "x-payment-networks": [
+          "eip155:8453",
+          "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+        ],
+        "description": "Ranked paid APIs for your task: URL, price, network, delivery evidence, risk flags. 0.01 USDC. Costs 0.01 USDC over x402 outside the free demo set. A verified non-demo search with one or more recommendations returns its answer before settlement completes. Read x-at-payment-attempt-id from the paid 200 and use the free /receipt route for the eventual result. Empty results, invalid, rate-limited and unavailable searches are not settled. Every scalar parameter must appear once. Payment challenge evidence does not verify paid delivery.",
         "parameters": [
           {
             "in": "query",
             "name": "need",
             "required": true,
-            "description": "A phrase describing the required work, with at least two letters or digits. The limit counts Unicode characters in the original input, including whitespace. Accepted text is normalized without truncation and embedded for semantic retrieval. Maximum 300 characters.",
+            "description": "A phrase describing the required work, with at least two letters or digits. The limit counts Unicode characters in the original input, including whitespace. Accepted text is normalized without truncation and matched against indexed endpoint descriptions. The free demo needs (weather, crypto prices, web search) may change. Maximum 300 characters.",
             "schema": {
               "type": "string",
               "minLength": 2,
@@ -46,7 +51,7 @@
             "in": "query",
             "name": "live",
             "required": false,
-            "description": "Every returned endpoint must answer a payment challenge during this request. live=0 is unsupported.",
+            "description": "Only live=1 is supported. Returned picks do not always have a current payment challenge. Free demo needs (weather, crypto prices, web search) can skip this check, as can paid answers. Unconstrained picks may use a positive stored liveness probe within 72 hours or remain unknown after a bounded fallback. Explicit chain or price filters require a validated challenge. A pick without a validated challenge has payment_preflight.status=not_checked, has_valid_recent_challenge=false and selected_offer=null. Read liveness_source, liveness_checked_at and payment_preflight.checked_at; none verifies paid delivery.",
             "schema": {
               "type": "integer",
               "enum": [
@@ -79,14 +84,13 @@
             "in": "query",
             "name": "view",
             "required": false,
-            "description": "Legacy preserves successful-response fields and types. The other views use recommend.v2. Compact includes routing facts, evidence adds measurements, and debug adds bounded retrieval diagnostics.",
+            "description": "Response view: legacy, compact or evidence.",
             "schema": {
               "type": "string",
               "enum": [
                 "legacy",
                 "compact",
-                "evidence",
-                "debug"
+                "evidence"
               ],
               "default": "legacy"
             }
@@ -146,7 +150,7 @@
             }
           },
           "402": {
-            "description": "Payment is required or a signed authorization was already claimed. The body is empty. The x402 v2 challenge is the base64 encoded PAYMENT-REQUIRED response header, not the body, and it carries the signed at-payment-attempt extension. Decode the header and record extensions[\"at-payment-attempt\"].info.paymentAttemptId and leave the extension unchanged in the paid retry. It expires after 300 seconds.",
+            "description": "Payment is required or a signed authorization was already claimed. The body is empty. Bare unsigned GETs return discovery quotes only: need is required for /recommend and url for /inspect. Supply the required input and obtain that request's quote before signing. Signed calls without required input are refused before payment verification or settlement; empty or partially specified input returns 400. A valid non-demo request made without payment returns a quote, not a paid answer. Bazaar output examples are illustrative, not search results. The x402 v2 challenge is the base64 encoded PAYMENT-REQUIRED response header, not the body, and it carries the signed at-payment-attempt extension. Decode the header and record extensions[\"at-payment-attempt\"].info.paymentAttemptId and leave the extension unchanged in the paid retry. It expires after 300 seconds.",
             "headers": {
               "PAYMENT-REQUIRED": {
                 "schema": {
@@ -546,50 +550,6 @@
           }
         }
       },
-      "Interpretation": {
-        "type": "object",
-        "required": [
-          "keywords",
-          "category",
-          "max_price_usd",
-          "chain",
-          "source"
-        ],
-        "properties": {
-          "keywords": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "category": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "max_price_usd": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "chain": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source": {
-            "enum": [
-              "vector",
-              "llm",
-              "fallback_tokenized"
-            ]
-          }
-        }
-      },
       "CatalogPrice": {
         "type": "object",
         "required": [
@@ -671,131 +631,6 @@
           }
         }
       },
-      "LiveCheck": {
-        "type": "object",
-        "required": [
-          "checked_at",
-          "method",
-          "http_status"
-        ],
-        "properties": {
-          "checked_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "method": {
-            "enum": [
-              "GET",
-              "POST"
-            ]
-          },
-          "http_status": {
-            "const": 402
-          },
-          "source": {
-            "const": "cache"
-          }
-        }
-      },
-      "LiveStats": {
-        "type": "object",
-        "required": [
-          "checked_count",
-          "passed_count",
-          "rejected_count",
-          "unchecked_count",
-          "outbound_request_count",
-          "elapsed_ms",
-          "outcome_counts"
-        ],
-        "properties": {
-          "checked_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "passed_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "rejected_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "unchecked_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "outbound_request_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "elapsed_ms": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "outcome_counts": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
-        }
-      },
-      "Retrieval": {
-        "type": "object",
-        "required": [
-          "mode",
-          "model",
-          "doc_generation",
-          "encoder_calls",
-          "floor_distance",
-          "floor_widened",
-          "floor_widening_failed"
-        ],
-        "properties": {
-          "mode": {
-            "enum": [
-              "vector",
-              "unavailable",
-              "mixed"
-            ]
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "doc_generation": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "encoder_calls": {
-            "enum": [
-              0,
-              1
-            ]
-          },
-          "floor_distance": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "The cosine-distance cut that produced these candidates. Null when retrieval did not run."
-          },
-          "floor_widened": {
-            "type": "boolean",
-            "description": "True when the preferred cut found nothing and the pool was widened to answer at all. The picks are looser matches and should be judged as such."
-          },
-          "floor_widening_failed": {
-            "type": "boolean",
-            "description": "Always false on successful responses. An incomplete search returns an unbilled HTTP 502 or 503 and is not cached."
-          }
-        }
-      },
       "SelectedOffer": {
         "anyOf": [
           {
@@ -869,6 +704,25 @@
             }
           }
         ]
+      },
+      "CallReadiness": {
+        "type": "object",
+        "required": [
+          "status",
+          "explanation"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "not_ready",
+              "unknown"
+            ]
+          },
+          "explanation": {
+            "type": "string"
+          }
+        }
       },
       "Invocation": {
         "oneOf": [
@@ -1032,10 +886,24 @@
             "format": "date-time"
           },
           "funding_source": {
-            "enum": [
-              "agents_trust_probe_wallet",
-              null
+            "anyOf": [
+              {
+                "enum": [
+                  "operator",
+                  null
+                ]
+              },
+              {
+                "const": "agents_trust_probe_wallet",
+                "deprecated": true,
+                "description": "Deprecated value; removal no earlier than 2026-11-15 and at least 30 days after first production deployment."
+              }
             ]
+          },
+          "funding_source_legacy": {
+            "const": "agents_trust_probe_wallet",
+            "deprecated": true,
+            "description": "Deprecated compatibility alias. Retained for at least 30 days after first production deployment; removal no earlier than 2026-11-15."
           },
           "settlement_result": {
             "type": [
@@ -1106,2082 +974,75 @@
         }
       },
       "Ranking": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
+        "type": "object",
+        "properties": {
+          "relevance": {
+            "type": [
+              "number",
+              "null"
             ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "relevance-first.v1",
-                "description": "Relevance decides after the callability keys. Measured evidence enters only through quality_weight, inside relevance, so a better-measured endpoint outranks a closer one only by as much as that weight allows."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
+            "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
           },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
+          "evidence_score": {
+            "type": [
+              "number",
+              "null"
             ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "relevance-first.v1",
-                "description": "Relevance decides after the callability keys. Measured evidence enters only through quality_weight, inside relevance, so a better-measured endpoint outranks a closer one only by as much as that weight allows. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
+            "description": "Composite evidence score, 0–1; null when unmeasured."
           },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "relevance-first.v1",
-                "description": "Relevance decides after the callability keys. Measured evidence enters only through quality_weight, inside relevance, so a better-measured endpoint outranks a closer one only by as much as that weight allows. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "documented_invocation",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "relevance-first.v1",
-                "description": "Relevance decides after the callability keys. Measured evidence enters only through quality_weight, inside relevance, so a better-measured endpoint outranks a closer one only by as much as that weight allows. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "documented_invocation",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-first.v2",
-                "description": "Measured evidence decides the order. A URL whose path still holds a placeholder sorts below callable siblings, because a caller cannot invoke it as it stands."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "evidence_score",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-first.v2",
-                "description": "Measured evidence decides the order. A URL whose path still holds a placeholder sorts below callable siblings, because a caller cannot invoke it as it stands. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "evidence_score",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-first.v2",
-                "description": "Measured evidence decides the order. A URL whose path still holds a placeholder sorts below callable siblings, because a caller cannot invoke it as it stands. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "documented_invocation",
-                  "evidence_score",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-first.v2",
-                "description": "Measured evidence decides the order. A URL whose path still holds a placeholder sorts below callable siblings, because a caller cannot invoke it as it stands. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "documented_invocation",
-                  "evidence_score",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-blend.v1",
-                "description": "Evidence is quantized into bands and relevance decides inside a band. Evidence still governs across bands."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "evidence_band",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-blend.v1",
-                "description": "Evidence is quantized into bands and relevance decides inside a band. Evidence still governs across bands. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "evidence_band",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-blend.v1",
-                "description": "Evidence is quantized into bands and relevance decides inside a band. Evidence still governs across bands. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "documented_invocation",
-                  "evidence_band",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "evidence-blend.v1",
-                "description": "Evidence is quantized into bands and relevance decides inside a band. Evidence still governs across bands. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "documented_invocation",
-                  "evidence_band",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v2",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v2",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v2",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "documented_invocation",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v2",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys. An endpoint with a documented, recent call contract sorts above one without; the one without is still returned, with invocation.status unknown. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "documented_invocation",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
+          "policy_version": {
+            "anyOf": [
+              {
+                "const": "relevance-first.v1"
+              },
+              {
+                "const": "fit.v3"
+              },
+              {
                 "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
+                "deprecated": true,
+                "description": "Deprecated value; removal no earlier than 2026-11-15 and at least 30 days after first production deployment."
               }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
             ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "jev_fit",
-                  "jev_choice",
-                  "documented_invocation",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
+            "description": "Ordering policy identifier; may change."
           },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "jev_choice_lead",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Opaque list of sort keys applied."
           },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "jev_choice_lead",
-                  "jev_fit",
-                  "jev_choice",
-                  "documented_invocation",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
+          "model_version": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
+          "ranking_policy_legacy": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated compatibility alias. Retained for at least 30 days after first production deployment; removal no earlier than 2026-11-15."
           },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "jev_fit",
-                  "jev_choice",
-                  "documented_invocation",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "jev_choice_lead",
-                  "jev_fit",
-                  "jev_choice",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "relevance",
-              "evidence_score",
-              "endpoint_score",
-              "provider_score",
-              "provider_tier",
-              "model_version",
-              "quality_weight",
-              "lexical_weight",
-              "policy_version",
-              "order"
-            ],
-            "properties": {
-              "relevance": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Estimated relevance of the endpoint to the requested task. Read order for the sort keys applied to this response."
-              },
-              "evidence_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Combines endpoint evidence and provider trust, or endpoint evidence alone when the provider is unscored. Provider trust is already included and must not be added again. Null when fewer than two endpoint pillars are present or the ranking score is unknown."
-              },
-              "endpoint_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Raw endpoint evidence component, even when too few pillars make it ineligible for ranking. The same measurement is named evidence.offer_evidence_score in detailed views."
-              },
-              "provider_score": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Provider trust component already included in evidence_score when available. Null means the provider is unscored."
-              },
-              "provider_tier": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "model_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "quality_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata. Interpret it with order; it is not an independent evidence score."
-              },
-              "lexical_weight": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Response-specific weighting metadata for relevance. It is not an independent evidence score."
-              },
-              "policy_version": {
-                "const": "jev-fit.v3",
-                "description": "Identifies the ordering applied to this response. Read order for its sort keys. Under the selection gates a pick whose own input contract excludes the requested value sorts below every compatible pick and carries INPUT_MISMATCH; it is still returned."
-              },
-              "order": {
-                "type": "array",
-                "const": [
-                  "callable_url",
-                  "input_compatible",
-                  "jev_choice_lead",
-                  "jev_fit",
-                  "jev_choice",
-                  "documented_invocation",
-                  "relevance",
-                  "provider_tier",
-                  "catalog_min_price",
-                  "endpoint_id"
-                ],
-                "description": "The sort keys this response applied, in the order it applied them."
-              }
-            }
+          "order_legacy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "deprecated": true,
+            "description": "Deprecated compatibility alias. Retained for at least 30 days after first production deployment; removal no earlier than 2026-11-15."
           }
-        ]
+        }
       },
       "Evidence": {
         "type": "object",
-        "required": [
-          "offer_evidence_score",
-          "coverage_pct",
-          "challenge_availability_pct",
-          "response_ms",
-          "probe_days",
-          "last_probe_at",
-          "description_provenance",
-          "observation_counts"
-        ],
         "properties": {
           "offer_evidence_score": {
             "type": [
               "number",
               "null"
             ],
-            "description": "The same raw endpoint evidence measurement as ranking.endpoint_score, not an independent score."
-          },
-          "coverage_pct": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "challenge_availability_pct": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero.",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "response_ms": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "probe_days": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
+            "description": "Composite evidence score, 0–1; null when unmeasured."
           },
           "last_probe_at": {
             "type": [
@@ -3190,104 +1051,18 @@
             ],
             "format": "date-time",
             "description": "Time of the most recent stored catalog probe. payment_preflight.checked_at and source identify the challenge evidence used for this pick."
-          },
-          "description_provenance": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "observation_counts": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "additionalProperties": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "description": "Null means unknown or unmeasured. It never means zero."
-            }
           }
         }
       },
       "LegacyEvidence": {
         "type": "object",
-        "required": [
-          "endpoint_score",
-          "pillars_present",
-          "coverage_pct",
-          "model_version",
-          "uptime_pct",
-          "response_ms",
-          "probe_days",
-          "description_source",
-          "description_shared_count"
-        ],
         "properties": {
           "endpoint_score": {
             "type": [
               "number",
               "null"
             ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "pillars_present": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "coverage_pct": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "model_version": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "uptime_pct": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero.",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "response_ms": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "probe_days": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
-          },
-          "description_source": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "description_shared_count": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "Null means unknown or unmeasured. It never means zero."
+            "description": "Composite evidence score, 0–1; null when unmeasured."
           }
         }
       },
@@ -3302,7 +1077,6 @@
           "ranking_score",
           "category",
           "category_scope",
-          "description_provenance",
           "price",
           "networks",
           "is_live",
@@ -3312,6 +1086,7 @@
           "evidence",
           "reason",
           "invocation",
+          "call_readiness",
           "delivery_verification",
           "match",
           "reason_codes",
@@ -3343,7 +1118,7 @@
               "strong",
               "weak"
             ],
-            "description": "How close this pick sits to the request. strong: under the strong-match distance, where every graded pick so far was relevant. weak: cleared only the floor, so it is the nearest thing found rather than a confirmed match, and carries the WEAK_MATCH risk flag. The route always answers with the closest thing it has, so a weak rank 1 is expected on a need the catalog cannot serve."
+            "description": "strong: close match; weak: nearest thing found, carries WEAK_MATCH."
           },
           "ranking_score": {
             "type": [
@@ -3360,12 +1135,6 @@
           },
           "category_scope": {
             "const": "seller"
-          },
-          "description_provenance": {
-            "type": [
-              "string",
-              "null"
-            ]
           },
           "price": {
             "$ref": "#/components/schemas/CatalogPrice"
@@ -3407,6 +1176,9 @@
           },
           "invocation": {
             "$ref": "#/components/schemas/Invocation"
+          },
+          "call_readiness": {
+            "$ref": "#/components/schemas/CallReadiness"
           },
           "delivery_verification": {
             "$ref": "#/components/schemas/DeliveryVerification"
@@ -3463,10 +1235,11 @@
             "items": {
               "type": "string"
             },
-            "description": "Stable caution codes. WEAK_MATCH mirrors match_strength weak. SEMANTIC_MATCH_LOOSENED means the preferred distance cut found nothing and this pick comes from a widened pool, so it is a looser match than usual. REQUIRED_INPUT_UNKNOWN means no usable input contract is published, including for GET requests with unknown query parameters. INPUT_MISMATCH means the pick's own input contract only accepts values that exclude what the need asks for; the pick is kept below every compatible one. PAID_DELIVERY_NOT_TESTED, PAID_DELIVERY_QUALITY_ISSUE and PAID_DELIVERY_FAILED mirror delivery_verification.status. INVOCATION_CONFLICT means the provider declaration disagrees with the observed method or URL, so its input contract is withheld. Unknown future codes must not be read as a verified anything."
+            "description": "Caution codes. WEAK_MATCH marks a weak match. Unknown codes never prove verified delivery."
           },
           "live_check": {
-            "$ref": "#/components/schemas/LiveCheck"
+            "type": "object",
+            "description": "diagnostics, unstable shape, not part of the contract"
           },
           "selected_offer": {
             "$ref": "#/components/schemas/SelectedOffer"
@@ -3564,7 +1337,7 @@
             "type": "string"
           },
           "interpretation": {
-            "$ref": "#/components/schemas/Interpretation"
+            "$ref": "#/components/schemas/Diagnostics"
           },
           "picks": {
             "type": "array",
@@ -3599,7 +1372,7 @@
                   "weak",
                   null
                 ],
-                "description": "The first pick's match_strength, null when there are no picks. One field that says whether rank 1 is a match or merely the nearest thing."
+                "description": "strong: close match; weak: nearest thing found, carries WEAK_MATCH."
               },
               "pick_source": {
                 "const": "deterministic"
@@ -3615,57 +1388,12 @@
                 }
               },
               "live_check": {
-                "$ref": "#/components/schemas/LiveStats"
+                "type": "object",
+                "description": "diagnostics, unstable shape, not part of the contract"
               },
               "index": {
                 "type": "object",
-                "required": [
-                  "n_indexed",
-                  "n_live",
-                  "n_callable",
-                  "n_url_valid",
-                  "last_built_at"
-                ],
-                "properties": {
-                  "n_indexed": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "n_live": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "n_callable": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "n_url_valid": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "last_built_at": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "n_recommend_http_excluded": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "n_recommend_https_non_443_excluded": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "n_recommend_fragment_excluded": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "n_recommend_url_eligible": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                }
+                "description": "diagnostics, unstable shape, not part of the contract"
               },
               "suggestions": {
                 "type": "object",
@@ -3696,7 +1424,7 @@
               },
               "ranking_experiment": {
                 "type": "object",
-                "description": "Optional diagnostic metadata. Its absence does not imply missing recommendations or lower confidence."
+                "description": "diagnostics, unstable shape, not part of the contract"
               },
               "no_confident_fit": {
                 "const": true
@@ -3711,7 +1439,8 @@
             }
           },
           "retrieval": {
-            "$ref": "#/components/schemas/Retrieval"
+            "type": "object",
+            "description": "diagnostics, unstable shape, not part of the contract"
           }
         }
       },
@@ -3724,6 +1453,7 @@
           "description",
           "match_strength",
           "invocation",
+          "call_readiness",
           "selected_offer",
           "payment_preflight",
           "has_valid_recent_challenge",
@@ -3758,10 +1488,13 @@
               "strong",
               "weak"
             ],
-            "description": "How close this pick sits to the request. strong: under the strong-match distance, where every graded pick so far was relevant. weak: cleared only the floor, so it is the nearest thing found rather than a confirmed match, and carries the WEAK_MATCH risk flag. The route always answers with the closest thing it has, so a weak rank 1 is expected on a need the catalog cannot serve."
+            "description": "strong: close match; weak: nearest thing found, carries WEAK_MATCH."
           },
           "invocation": {
             "$ref": "#/components/schemas/Invocation"
+          },
+          "call_readiness": {
+            "$ref": "#/components/schemas/CallReadiness"
           },
           "selected_offer": {
             "$ref": "#/components/schemas/SelectedOffer"
@@ -3790,7 +1523,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Stable caution codes. WEAK_MATCH mirrors match_strength weak. SEMANTIC_MATCH_LOOSENED means the preferred distance cut found nothing and this pick comes from a widened pool, so it is a looser match than usual. REQUIRED_INPUT_UNKNOWN means no usable input contract is published, including for GET requests with unknown query parameters. INPUT_MISMATCH means the pick's own input contract only accepts values that exclude what the need asks for; the pick is kept below every compatible one. PAID_DELIVERY_NOT_TESTED, PAID_DELIVERY_QUALITY_ISSUE and PAID_DELIVERY_FAILED mirror delivery_verification.status. INVOCATION_CONFLICT means the provider declaration disagrees with the observed method or URL, so its input contract is withheld. Unknown future codes must not be read as a verified anything."
+            "description": "Caution codes. WEAK_MATCH marks a weak match. Unknown codes never prove verified delivery."
           },
           "liveness": {
             "enum": [
@@ -3871,6 +1604,7 @@
           "description",
           "match_strength",
           "invocation",
+          "call_readiness",
           "selected_offer",
           "payment_preflight",
           "has_valid_recent_challenge",
@@ -3911,10 +1645,13 @@
               "strong",
               "weak"
             ],
-            "description": "How close this pick sits to the request. strong: under the strong-match distance, where every graded pick so far was relevant. weak: cleared only the floor, so it is the nearest thing found rather than a confirmed match, and carries the WEAK_MATCH risk flag. The route always answers with the closest thing it has, so a weak rank 1 is expected on a need the catalog cannot serve."
+            "description": "strong: close match; weak: nearest thing found, carries WEAK_MATCH."
           },
           "invocation": {
             "$ref": "#/components/schemas/Invocation"
+          },
+          "call_readiness": {
+            "$ref": "#/components/schemas/CallReadiness"
           },
           "selected_offer": {
             "$ref": "#/components/schemas/SelectedOffer"
@@ -3943,7 +1680,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Stable caution codes. WEAK_MATCH mirrors match_strength weak. SEMANTIC_MATCH_LOOSENED means the preferred distance cut found nothing and this pick comes from a widened pool, so it is a looser match than usual. REQUIRED_INPUT_UNKNOWN means no usable input contract is published, including for GET requests with unknown query parameters. INPUT_MISMATCH means the pick's own input contract only accepts values that exclude what the need asks for; the pick is kept below every compatible one. PAID_DELIVERY_NOT_TESTED, PAID_DELIVERY_QUALITY_ISSUE and PAID_DELIVERY_FAILED mirror delivery_verification.status. INVOCATION_CONFLICT means the provider declaration disagrees with the observed method or URL, so its input contract is withheld. Unknown future codes must not be read as a verified anything."
+            "description": "Caution codes. WEAK_MATCH marks a weak match. Unknown codes never prove verified delivery."
           },
           "seller": {
             "$ref": "#/components/schemas/Provider"
@@ -4062,7 +1799,7 @@
             "type": "string"
           },
           "interpretation": {
-            "$ref": "#/components/schemas/Interpretation"
+            "$ref": "#/components/schemas/Diagnostics"
           },
           "view": {
             "const": "compact"
@@ -4082,7 +1819,6 @@
               "match_strength",
               "guidance",
               "documentation_url",
-              "retrieval_floor_widened",
               "retrieval_floor_widening_failed"
             ],
             "properties": {
@@ -4101,7 +1837,7 @@
                   "weak",
                   null
                 ],
-                "description": "The first pick's match_strength, null when there are no picks. One field that says whether rank 1 is a match or merely the nearest thing."
+                "description": "strong: close match; weak: nearest thing found, carries WEAK_MATCH."
               },
               "guidance": {
                 "type": "string",
@@ -4110,10 +1846,6 @@
               "documentation_url": {
                 "type": "string",
                 "format": "uri"
-              },
-              "retrieval_floor_widened": {
-                "type": "boolean",
-                "description": "True when the preferred distance cut found nothing and the pool was widened once to answer at all. Every pick then carries the SEMANTIC_MATCH_LOOSENED risk flag."
               },
               "retrieval_floor_widening_failed": {
                 "type": "boolean",
@@ -4130,7 +1862,7 @@
               },
               "ranking_experiment": {
                 "type": "object",
-                "description": "Optional diagnostic metadata. Its absence does not imply missing recommendations or lower confidence."
+                "description": "diagnostics, unstable shape, not part of the contract"
               },
               "no_confident_fit": {
                 "const": true
@@ -4154,22 +1886,17 @@
                     "risk_flags": {
                       "contains": {
                         "const": "SEMANTIC_MATCH_LOOSENED"
-                      }
+                      },
+                      "description": "Caution codes. WEAK_MATCH marks a weak match. Unknown codes never prove verified delivery."
                     }
                   }
                 }
               },
               "meta": {
                 "properties": {
-                  "retrieval_floor_widened": {
-                    "const": true
-                  },
                   "retrieval": {
-                    "properties": {
-                      "floor_widened": {
-                        "const": true
-                      }
-                    }
+                    "type": "object",
+                    "description": "diagnostics, unstable shape, not part of the contract"
                   }
                 }
               }
@@ -4185,22 +1912,17 @@
                         "contains": {
                           "const": "SEMANTIC_MATCH_LOOSENED"
                         }
-                      }
+                      },
+                      "description": "Caution codes. WEAK_MATCH marks a weak match. Unknown codes never prove verified delivery."
                     }
                   }
                 }
               },
               "meta": {
                 "properties": {
-                  "retrieval_floor_widened": {
-                    "const": false
-                  },
                   "retrieval": {
-                    "properties": {
-                      "floor_widened": {
-                        "const": false
-                      }
-                    }
+                    "type": "object",
+                    "description": "diagnostics, unstable shape, not part of the contract"
                   }
                 }
               }
@@ -4231,7 +1953,7 @@
             "type": "string"
           },
           "interpretation": {
-            "$ref": "#/components/schemas/Interpretation"
+            "$ref": "#/components/schemas/Diagnostics"
           },
           "view": {
             "const": "evidence"
@@ -4251,7 +1973,6 @@
               "match_strength",
               "guidance",
               "documentation_url",
-              "retrieval_floor_widened",
               "retrieval_floor_widening_failed"
             ],
             "properties": {
@@ -4270,7 +1991,7 @@
                   "weak",
                   null
                 ],
-                "description": "The first pick's match_strength, null when there are no picks. One field that says whether rank 1 is a match or merely the nearest thing."
+                "description": "strong: close match; weak: nearest thing found, carries WEAK_MATCH."
               },
               "guidance": {
                 "type": "string",
@@ -4279,10 +2000,6 @@
               "documentation_url": {
                 "type": "string",
                 "format": "uri"
-              },
-              "retrieval_floor_widened": {
-                "type": "boolean",
-                "description": "True when the preferred distance cut found nothing and the pool was widened once to answer at all. Every pick then carries the SEMANTIC_MATCH_LOOSENED risk flag."
               },
               "retrieval_floor_widening_failed": {
                 "type": "boolean",
@@ -4299,7 +2016,7 @@
               },
               "ranking_experiment": {
                 "type": "object",
-                "description": "Optional diagnostic metadata. Its absence does not imply missing recommendations or lower confidence."
+                "description": "diagnostics, unstable shape, not part of the contract"
               },
               "no_confident_fit": {
                 "const": true
@@ -4323,22 +2040,17 @@
                     "risk_flags": {
                       "contains": {
                         "const": "SEMANTIC_MATCH_LOOSENED"
-                      }
+                      },
+                      "description": "Caution codes. WEAK_MATCH marks a weak match. Unknown codes never prove verified delivery."
                     }
                   }
                 }
               },
               "meta": {
                 "properties": {
-                  "retrieval_floor_widened": {
-                    "const": true
-                  },
                   "retrieval": {
-                    "properties": {
-                      "floor_widened": {
-                        "const": true
-                      }
-                    }
+                    "type": "object",
+                    "description": "diagnostics, unstable shape, not part of the contract"
                   }
                 }
               }
@@ -4354,203 +2066,17 @@
                         "contains": {
                           "const": "SEMANTIC_MATCH_LOOSENED"
                         }
-                      }
+                      },
+                      "description": "Caution codes. WEAK_MATCH marks a weak match. Unknown codes never prove verified delivery."
                     }
                   }
                 }
               },
               "meta": {
                 "properties": {
-                  "retrieval_floor_widened": {
-                    "const": false
-                  },
                   "retrieval": {
-                    "properties": {
-                      "floor_widened": {
-                        "const": false
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        ]
-      },
-      "DebugRecommendation": {
-        "type": "object",
-        "required": [
-          "schema_version",
-          "generated_at",
-          "need",
-          "interpretation",
-          "view",
-          "picks",
-          "meta"
-        ],
-        "properties": {
-          "schema_version": {
-            "const": "recommend.v2"
-          },
-          "generated_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "need": {
-            "type": "string"
-          },
-          "interpretation": {
-            "$ref": "#/components/schemas/Interpretation"
-          },
-          "view": {
-            "const": "debug"
-          },
-          "picks": {
-            "type": "array",
-            "maxItems": 5,
-            "items": {
-              "$ref": "#/components/schemas/EvidencePick"
-            },
-            "description": "These are candidates to check, not an instruction to pay. The order follows ranking.policy_version and there is no rank number. The first pick is not guaranteed to fit the task, so read match_strength and risk_flags before choosing one."
-          },
-          "meta": {
-            "type": "object",
-            "required": [
-              "result_count",
-              "match_strength",
-              "guidance",
-              "documentation_url",
-              "retrieval_floor_widened",
-              "retrieval_floor_widening_failed",
-              "candidate_count",
-              "retrieval"
-            ],
-            "properties": {
-              "result_count": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 5
-              },
-              "match_strength": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "enum": [
-                  "strong",
-                  "weak",
-                  null
-                ],
-                "description": "The first pick's match_strength, null when there are no picks. One field that says whether rank 1 is a match or merely the nearest thing."
-              },
-              "guidance": {
-                "type": "string",
-                "description": "How to read picks. They are candidates to check, not an instruction to pay, and the first one is not guaranteed to fit the task."
-              },
-              "documentation_url": {
-                "type": "string",
-                "format": "uri"
-              },
-              "retrieval_floor_widened": {
-                "type": "boolean",
-                "description": "True when the preferred distance cut found nothing and the pool was widened once to answer at all. Every pick then carries the SEMANTIC_MATCH_LOOSENED risk flag."
-              },
-              "retrieval_floor_widening_failed": {
-                "type": "boolean",
-                "description": "Always false on successful responses. An incomplete search returns an unbilled HTTP 502 or 503 and is not cached."
-              },
-              "candidate_count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "retrieval": {
-                "$ref": "#/components/schemas/Retrieval"
-              },
-              "live_check": {
-                "$ref": "#/components/schemas/LiveStats"
-              },
-              "no_match_reason": {
-                "enum": [
-                  "NO_CANDIDATE_ABOVE_FLOOR",
-                  "WEAK_MATCH_ONLY",
-                  "MATCH_STALE",
-                  "PRICE_ABOVE_LIMIT",
-                  "NETWORK_UNAVAILABLE"
-                ]
-              },
-              "ranking_experiment": {
-                "type": "object",
-                "description": "Optional diagnostic metadata. Its absence does not imply missing recommendations or lower confidence."
-              },
-              "no_confident_fit": {
-                "const": true
-              },
-              "low_confidence_options": {
-                "type": "array",
-                "maxItems": 5,
-                "items": {
-                  "$ref": "#/components/schemas/EvidencePick"
-                }
-              }
-            }
-          }
-        },
-        "oneOf": [
-          {
-            "properties": {
-              "picks": {
-                "items": {
-                  "properties": {
-                    "risk_flags": {
-                      "contains": {
-                        "const": "SEMANTIC_MATCH_LOOSENED"
-                      }
-                    }
-                  }
-                }
-              },
-              "meta": {
-                "properties": {
-                  "retrieval_floor_widened": {
-                    "const": true
-                  },
-                  "retrieval": {
-                    "properties": {
-                      "floor_widened": {
-                        "const": true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          {
-            "properties": {
-              "picks": {
-                "items": {
-                  "properties": {
-                    "risk_flags": {
-                      "not": {
-                        "contains": {
-                          "const": "SEMANTIC_MATCH_LOOSENED"
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "meta": {
-                "properties": {
-                  "retrieval_floor_widened": {
-                    "const": false
-                  },
-                  "retrieval": {
-                    "properties": {
-                      "floor_widened": {
-                        "const": false
-                      }
-                    }
+                    "type": "object",
+                    "description": "diagnostics, unstable shape, not part of the contract"
                   }
                 }
               }
@@ -4565,12 +2091,48 @@
           },
           {
             "$ref": "#/components/schemas/EvidenceRecommendation"
-          },
-          {
-            "$ref": "#/components/schemas/DebugRecommendation"
           }
         ]
+      },
+      "Diagnostics": {
+        "type": "object",
+        "description": "diagnostics, unstable shape, not part of the contract"
       }
     }
+  },
+  "x-wire-value-transition": {
+    "removal_not_before": "2026-11-15",
+    "minimum_days_after_first_production_deployment": 30,
+    "aliases": [
+      {
+        "field": "ranking.order",
+        "value": [
+          "task_fit",
+          "relative_fit",
+          "preferred_pick"
+        ],
+        "deprecated_alias": "ranking.order_legacy",
+        "deprecated_value": [
+          "jev_fit",
+          "jev_choice",
+          "jev_choice_lead"
+        ],
+        "deprecated": true
+      },
+      {
+        "field": "ranking.policy_version",
+        "value": "fit.v3",
+        "deprecated_alias": "ranking.ranking_policy_legacy",
+        "deprecated_value": "jev-fit.v3",
+        "deprecated": true
+      },
+      {
+        "field": "delivery_verification.funding_source",
+        "value": "operator",
+        "deprecated_alias": "delivery_verification.funding_source_legacy",
+        "deprecated_value": "agents_trust_probe_wallet",
+        "deprecated": true
+      }
+    ]
   }
 }
