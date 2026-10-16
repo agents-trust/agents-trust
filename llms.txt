@@ -8,6 +8,10 @@ An unpaid GET answers 402 with an empty body. The terms are in the base64 PAYMEN
 
 Recommend vs Inspect: Recommend takes a task and returns ranked candidates. Inspect (GET /inspect?url=<endpoint>) takes one endpoint URL and returns the evidence held for it: reachability, payment challenge, request contract, provider score. Inspect costs 1% of the target's lowest quoted price, minimum 0.001 USDC; a URL with no record returns a free 404 ENDPOINT_NOT_INDEXED. Neither route calls or pays the provider.
 
+Complete unpaid example: GET https://api.agents-trust.com/recommend?need=weather%20forecast&view=compact
+
+Use a client that exposes response headers. A text-only web-fetch tool may report 402 without exposing PAYMENT-REQUIRED, so it cannot check the offer. Without a wallet, read the quote and stop.
+
 ## Docs
 
 - [SKILL.md](https://github.com/agents-trust/agents-trust/blob/main/skills/agents-trust/SKILL.md): how to call Recommend, parameters, cost, reading the answer
