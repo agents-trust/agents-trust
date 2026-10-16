@@ -1,6 +1,6 @@
 ---
 name: agents-trust
-description: Find a paid API for a task. Use when an agent needs a callable x402-paid API (web search, weather, token prices, geocoding, document extraction, blockchain data, or any other work) and wants ranked candidates with price, payment network, how to call each one, and live payment-challenge evidence instead of a catalog listing. Agents Trust Recommend is one paid GET at 0.01 USDC per query on Base or Solana. Do not use it to call or pay the provider for you; it only recommends.
+description: API search and recommendations. Find a paid API for a task. Use when an agent needs a callable x402-paid API (web search, weather, token prices, geocoding, document extraction, blockchain data, or any other work) and wants ranked candidates with price, payment network, how to call each one, and live payment-challenge evidence instead of a catalog listing. Agents Trust Recommend is one paid GET at 0.01 USDC per query on Base or Solana. Do not use it to call or pay the provider for you; it only recommends.
 license: MIT
 metadata:
   homepage: https://agents-trust.com/docs/
@@ -15,6 +15,16 @@ the x402 payment is the auth. You pay Agents Trust for the answer, then call the
 chosen provider yourself, with your own wallet, at the provider's own price.
 
     GET https://api.agents-trust.com/recommend?need=<phrase>&limit=<1-5>&view=compact
+
+A complete unpaid example:
+
+    GET https://api.agents-trust.com/recommend?need=weather%20forecast&view=compact
+
+Use an HTTP client that exposes response headers. Text-only web-fetch tools may
+report 402 without exposing `PAYMENT-REQUIRED`; they cannot check the amount,
+network, asset or payTo from that status alone. With only such a tool, report the
+exact URL and that limitation. The [unpaid quote example](https://github.com/agents-trust/agents-trust/blob/main/examples/python/quote.py)
+reads the terms without signing or paying.
 
 ## Parameters
 
