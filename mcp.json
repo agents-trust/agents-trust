@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "agents-trust": {
+      "command": "node",
+      "args": [
+        "${CURSOR_PLUGIN_ROOT}/mcp/dist/index.js"
+      ],
+      "env": {
+        "AGENTS_TRUST_WALLET_PRIVATE_KEY": "${AGENTS_TRUST_WALLET_PRIVATE_KEY}",
+        "AGENTS_TRUST_MAX_CALL_USDC": "${AGENTS_TRUST_MAX_CALL_USDC}",
+        "AGENTS_TRUST_SESSION_CAP_USDC": "${AGENTS_TRUST_SESSION_CAP_USDC}",
+        "AGENTS_TRUST_ENABLE_PAYMENTS": "${AGENTS_TRUST_ENABLE_PAYMENTS}"
+      }
+    }
+  }
+}

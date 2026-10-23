@@ -1,14 +1,15 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.agents-trust/agents-trust",
+  "name": "com.agents-trust/recommend",
   "title": "Agents Trust",
-  "description": "Find a paid x402 API for a task: ranked picks with price, network and live evidence.",
+  "description": "Find APIs and inspect endpoint evidence. Pay with your own Base USDC wallet.",
+  "version": "0.1.0",
+  "websiteUrl": "https://agents-trust.com",
   "repository": {
     "url": "https://github.com/agents-trust/agents-trust",
     "source": "github",
     "subfolder": "mcp"
   },
-  "version": "0.1.0",
   "packages": [
     {
       "registryType": "npm",
@@ -19,22 +20,30 @@
       },
       "environmentVariables": [
         {
-          "name": "AGENTS_TRUST_EVM_PRIVATE_KEY",
-          "description": "Optional. Your Base wallet key; without it the server only quotes and never pays.",
+          "name": "AGENTS_TRUST_ENABLE_PAYMENTS",
+          "description": "Exact true grants one payment authorization per process. Disabled by default; no per-call confirmation.",
+          "default": "false",
           "isRequired": false,
-          "isSecret": true
+          "format": "string"
         },
         {
-          "name": "AGENTS_TRUST_MAX_FEE_USDC",
-          "description": "Optional. Max Agents Trust fee per query in USDC. Default 0.05; the fee is currently 0.01.",
+          "name": "AGENTS_TRUST_WALLET_PRIVATE_KEY",
+          "description": "Your wallet private key for Base USDC payments",
           "isRequired": false,
-          "isSecret": false
+          "isSecret": true,
+          "format": "string"
         },
         {
-          "name": "AGENTS_TRUST_MAX_TOTAL_USDC",
-          "description": "Optional. Max total USDC the server may spend while it runs. Default 0.25.",
-          "isRequired": false,
-          "isSecret": false
+          "name": "AGENTS_TRUST_MAX_CALL_USDC",
+          "description": "Maximum Recommend or Inspect fee in USDC",
+          "default": "0.01",
+          "format": "string"
+        },
+        {
+          "name": "AGENTS_TRUST_SESSION_CAP_USDC",
+          "description": "Per-process USDC reservation cap",
+          "default": "0.01",
+          "format": "string"
         }
       ]
     }

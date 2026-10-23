@@ -23,7 +23,7 @@ GET https://api.agents-trust.com/recommend?need=weather%20forecast&limit=3&view=
 
 ## Recommend or Inspect
 
-The API has two paid routes. This repo's skill, examples and MCP server cover Recommend.
+The API has two paid routes. The skill and examples cover Recommend; the MCP server supports both routes.
 
 | | Recommend | Inspect |
 |---|---|---|
@@ -89,25 +89,34 @@ claude plugin install agents-trust@agents-trust
 
 # Codex, or any client that takes a command
 git clone https://github.com/agents-trust/agents-trust
-codex mcp add agents-trust -- node "$PWD/agents-trust/mcp/bundle/agents-trust-mcp.mjs"
+cd agents-trust/mcp
+npm ci
+npm run build
+# Register the absolute path to this checkout
+# Example for any MCP host: node /absolute/path/to/agents-trust/mcp/dist/index.js
 ```
 
-The server has two tools. `recommend` returns the quote when no wallet is
-configured, so it never pays by surprise. `get_receipt` is free. Configuration for
+Build `mcp/` inside the installed plugin checkout before enabling it; marketplace
+installation does not run the build. The server has four tools: `recommend`,
+`inspect`, `receipt` and `health`. It returns unpaid quotes by default, even if a
+wallet is present. Paid calls require a separate owner grant for one authorization
+per process; `receipt` and `health` are free. Configuration for
 Cursor and Claude Desktop, and the spending caps, are in [mcp/README.md](mcp/README.md).
 
-**Node versions:** the MCP server needs Node 20 or newer. `examples/typescript` needs
+**Node versions:** the MCP server and its build need Node 20.19+, 22.13+ or 24. `examples/typescript` needs
 Node 22.18 or newer (or 23.6+) to run `.ts` files directly.
 
 ## What's here
 
 ```
 skills/agents-trust/        SKILL.md + references/ (payment flow, errors, response fields)
-mcp/                        MCP server (stdio); bundle/ runs without npm install
+mcp/                        MCP source (stdio); npm ci + npm run build before use
 examples/                   curl, Python, TypeScript: unpaid quote + paid call
 openapi.json                OpenAPI 3.1 for /recommend, /receipt, /health (from the live spec)
 llms.txt                    index for LLMs
 server.json, glama.json     MCP Registry and Glama metadata
+gemini-extension.json      Gemini extension + skills/
+.cursor-plugin/, mcp.json  Cursor plugin + optional wallet/cap variables
 .claude-plugin/, .mcp.json  Claude Code plugin + marketplace
 ```
 
@@ -122,3 +131,23 @@ server.json, glama.json     MCP Registry and Glama metadata
 
 Docs: https://agents-trust.com/docs/ · Contact: hello@agents-trust.com (include
 the `x-at-request-id` response header).
+
+## What the MCP integration runs and sends
+
+Each host starts local Node with the readable `mcp/dist/index.js` build. It
+fetches only `https://api.agents-trust.com`: task text and filters for Recommend,
+the exact endpoint URL and view for Inspect, a payment attempt ID for Receipt,
+and service status for Health. Agents Trust and its hosting infrastructure see
+the request and your IP address. The API may probe providers for Recommend;
+Inspect uses stored evidence. The MCP server does not call or pay providers,
+execute their code or run a blockchain RPC. Quote-only is the default; an optional
+wallet key alone never enables payments. Explicit owner opt-in permits one local
+x402 authorization under the caps, sent only to the API; settlement on Base makes
+addresses, amount and transaction public. Keys remain local, and the server writes
+no wallet or request log to disk. The MCP host controls its own result logging.
+Dependencies are fetched by `npm ci` during setup, with lifecycle scripts disabled.
+See the [full runtime and payment disclosure](mcp/README.md#host-installation-and-data-disclosure).
+
+**Rankings are not paid placements.** No fee buys a provider's position.
+[Release notes](docs/mcp-release.md) describe the registry identity, proof step
+and account work deferred until after merge and the field test.

@@ -1,8 +1,13 @@
 ---
 name: agents-trust
 description: API search and recommendations. Find a paid API for a task. Use when an agent needs a callable x402-paid API (web search, weather, token prices, geocoding, document extraction, blockchain data, or any other work) and wants ranked candidates with price, payment network, how to call each one, and live payment-challenge evidence instead of a catalog listing. Agents Trust Recommend is one paid GET at 0.01 USDC per query on Base or Solana. Do not use it to call or pay the provider for you; it only recommends.
-license: MIT
 metadata:
+  openclaw:
+    envVars:
+      - AGENTS_TRUST_WALLET_PRIVATE_KEY
+      - AGENTS_TRUST_ENABLE_PAYMENTS
+      - AGENTS_TRUST_MAX_CALL_USDC
+      - AGENTS_TRUST_SESSION_CAP_USDC
   homepage: https://agents-trust.com/docs/
   api: https://api.agents-trust.com
   openapi: https://api.agents-trust.com/openapi.json
@@ -35,7 +40,7 @@ a JSON 400 before any payment.
 |---|---|---|
 | `need` | yes | The work, in plain words. 2-300 Unicode characters, with at least two letters or digits. |
 | `limit` | no | 1-5, default 3. Fewer picks come back when evidence is thin. |
-| `view` | no | `compact`, `evidence` or `debug` return the `recommend.v2` shape. Omitted or `legacy` returns the older `picks[]` shape. Prefer `compact`. |
+| `view` | no | `compact` or `evidence` return the `recommend.v2` shape. Omitted or `legacy` returns the older `picks[]` shape. Prefer `compact`. |
 | `max_price_usd` | no | Caps the provider's own price per call. Separate from the recommendation fee. |
 | `chain` | no | The provider's payment network in CAIP-2 form, such as `eip155:8453` for Base. `base` is a 400. |
 | `live` | no | Only `1` is accepted, and it is already the default. |
@@ -128,9 +133,15 @@ Inspect contract is in the live OpenAPI.
 
 ## Without writing HTTP code
 
-The MCP server in this repo (`mcp/`) exposes two tools. `recommend` returns the
-quote when no wallet is configured, and pays only with your own key under your
-own cap. `get_receipt` is free.
+The MCP server in this repo (`mcp/`) exposes `recommend`, `inspect`, `receipt`
+and `health`. It returns an unpaid quote by default, including when a wallet is
+present. Paid mode requires the wallet owner's explicit runtime grant of
+`AGENTS_TRUST_ENABLE_PAYMENTS=true` and the optional
+`AGENTS_TRUST_WALLET_PRIVATE_KEY`. The grant permits one authorization per
+process within the configured per-call and session caps; failed or uncertain
+submissions consume it too. There is no per-call human prompt. Restart resets
+the grant, so reconcile the prior attempt before restarting with payment enabled.
+`receipt` and `health` are free. See [MCP configuration](../../mcp/README.md).
 
 ## Free routes on the same host
 
