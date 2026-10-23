@@ -221,12 +221,16 @@ export class AgentsTrustApi {
     try {
       const body: unknown = await response.json();
       const attempt = response.headers.get('x-at-payment-attempt-id');
-      const settled = paymentSubmitted && response.headers.get('x-at-payment-state') !== 'verified';
+      const emptyUncharged = path === '/recommend' && body !== null && typeof body === 'object'
+        && 'picks' in body && Array.isArray(body.picks) && body.picks.length === 0
+        && !response.headers.has('payment-response');
+      const settled = paymentSubmitted && !emptyUncharged;
+      const pending = settled && response.headers.get('x-at-payment-state') === 'verified';
       return {
         data: body,
         ...(paid ? {
           payment: payment(settled ? 'paid' : 'free', settled && submittedAmount !== null ? usdc(submittedAmount) : '0', attempt),
-          message: settled ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}` : 'Free result; no fee settled.',
+          message: settled ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}${pending ? '; authorization submitted, settlement pending: check receipt' : ''}` : 'Free result; no fee settled.',
         } : {}),
         ...(paid ? { evidence_guide: evidenceGuide } : {}),
         payment_attempt_id: response.headers.get('x-at-payment-attempt-id'),

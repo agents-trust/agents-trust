@@ -17,13 +17,13 @@ it('labels disabled-payment quotes distinctly', async () => {
   const result = await new AgentsTrustApi({}, vi.fn<typeof fetch>().mockResolvedValue(challenge())).recommend(params);
   expect(result).toMatchObject({ payment: { state: 'quote', fee_usdc: '0.01' }, data: { code: 'payments_disabled' } });
 });
-it('labels a paid success with its fee, attempt and receipt tool and preserves the one-use grant', async () => {
+it.each(['settled', 'verified'])('labels a paid %s answer with its fee, attempt and receipt tool and preserves the one-use grant', async state => {
   const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
-    .mockResolvedValueOnce(Response.json({ picks: [{}] }, { headers: { 'x-at-payment-attempt-id': 'test-attempt', 'x-at-payment-state': 'settled' } }))
+    .mockResolvedValueOnce(Response.json({ picks: [{}] }, { headers: { 'x-at-payment-attempt-id': 'test-attempt', 'x-at-payment-state': state } }))
     .mockResolvedValueOnce(challenge());
   const api = new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request);
   expect(await api.recommend(params)).toMatchObject({ payment: { state: 'paid', fee_usdc: '0.01', attempt_id: 'test-attempt', receipt_tool: 'receipt' },
-    message: 'paid 0.01 USDC, attempt test-attempt' });
+    message: expect.stringContaining('paid 0.01 USDC, attempt test-attempt') });
   await expect(api.recommend(params)).rejects.toMatchObject({ code: 'authorization_consumed', message: expect.stringContaining('Start a fresh process') });
   expect(request).toHaveBeenCalledTimes(3);
 });
