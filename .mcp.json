@@ -3,12 +3,13 @@
     "agents-trust": {
       "command": "node",
       "args": [
-        "${CLAUDE_PLUGIN_ROOT}/mcp/bundle/agents-trust-mcp.mjs"
+        "${CLAUDE_PLUGIN_ROOT}/mcp/dist/index.js"
       ],
       "env": {
-        "AGENTS_TRUST_EVM_PRIVATE_KEY": "${user_config.evm_private_key}",
-        "AGENTS_TRUST_MAX_FEE_USDC": "${user_config.max_fee_usdc}",
-        "AGENTS_TRUST_MAX_TOTAL_USDC": "${user_config.max_total_usdc}"
+        "AGENTS_TRUST_WALLET_PRIVATE_KEY": "${user_config.wallet_key}",
+        "AGENTS_TRUST_MAX_CALL_USDC": "${user_config.max_call_usdc}",
+        "AGENTS_TRUST_SESSION_CAP_USDC": "${user_config.session_cap_usdc}",
+        "AGENTS_TRUST_ENABLE_PAYMENTS": "${user_config.enable_payments}"
       }
     }
   }

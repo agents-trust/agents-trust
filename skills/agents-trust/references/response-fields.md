@@ -3,7 +3,7 @@
 The full schema is in the [OpenAPI document](../../../openapi.json), and the live
 copy is at https://api.agents-trust.com/openapi.json.
 
-## `view=compact`, `evidence`, `debug` → `recommend.v2`
+## `view=compact`, `evidence` → `recommend.v2`
 
 Each pick carries:
 
@@ -26,7 +26,7 @@ Each pick carries:
 - **`endpoint_id`**: a UUID or a 40-hex hash. Keep it exactly as returned.
 
 `evidence` adds measurements such as `evidence.last_probe_at`, the stored catalog
-probe. `debug` adds bounded retrieval diagnostics.
+probe.
 
 An empty result has `meta.no_match_reason`. It is not charged.
 

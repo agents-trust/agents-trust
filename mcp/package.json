@@ -1,52 +1,52 @@
 {
   "name": "@agents-trust/mcp",
   "version": "0.1.0",
-  "description": "MCP server for Agents Trust Recommend: find a paid x402 API for a task. Quotes without a wallet; pays only with your own wallet under your own cap.",
+  "description": "Find APIs, inspect endpoint evidence and look up payment receipts with Agents Trust.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --exclude test/paid.test.ts",
+    "prepack": "npm run build",
+    "test:paid": "vitest run test/paid.test.ts",
+    "smoke": "node scripts/smoke.mjs",
+    "bundle": "npm run build && node scripts/bundle.mjs",
+    "check:artifacts": "node scripts/check-artifacts.mjs"
+  },
+  "keywords": [],
   "license": "MIT",
-  "mcpName": "io.github.agents-trust/agents-trust",
   "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@x402/core": "2.28.0",
+    "@x402/evm": "2.28.0",
+    "@x402/fetch": "2.28.0",
+    "viem": "2.57.7",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "22.20.5",
+    "eslint": "9.39.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "4.1.12",
+    "fflate": "0.8.3"
+  },
   "bin": {
     "agents-trust-mcp": "dist/index.js"
   },
   "files": [
-    "dist",
-    "bundle",
-    "README.md"
+    "dist"
   ],
   "engines": {
-    "node": ">=20"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "bundle": "esbuild src/index.ts --bundle --minify --platform=node --format=esm --target=node20 --outfile=bundle/agents-trust-mcp.mjs --metafile=node_modules/.bundle-meta.json --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --log-level=warning && node scripts/notices.mjs",
-    "start": "node dist/index.js",
-    "pretest": "npm run build",
-    "test": "node --test test/*.test.mjs",
-    "smoke": "node test/smoke.mjs"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.32.1",
-    "@x402/evm": "2.28.0",
-    "@x402/fetch": "2.28.0",
-    "viem": "2.57.6",
-    "zod": "4.6.7"
-  },
-  "devDependencies": {
-    "@types/node": "24.19.2",
-    "esbuild": "^0.28.2",
-    "typescript": "5.9.3"
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/agents-trust/agents-trust.git",
+    "url": "https://github.com/agents-trust/agents-trust.git",
     "directory": "mcp"
   },
-  "homepage": "https://agents-trust.com/docs/",
-  "keywords": [
-    "mcp",
-    "x402",
-    "api-discovery",
-    "agents",
-    "recommend"
-  ]
+  "homepage": "https://agents-trust.com",
+  "mcpName": "com.agents-trust/recommend"
 }

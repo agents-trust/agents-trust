@@ -2,7 +2,7 @@
 # Repo checks. Live calls are unpaid only: no wallet key is ever passed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-unset AGENTS_TRUST_EVM_PRIVATE_KEY EVM_PRIVATE_KEY
+unset AGENTS_TRUST_WALLET_PRIVATE_KEY AGENTS_TRUST_ENABLE_PAYMENTS EVM_PRIVATE_KEY
 
 echo "== skill frontmatter (agentskills.io spec)"
 python3 - <<'PY'
@@ -41,15 +41,9 @@ fi
 echo "== openapi.json matches live spec"
 node scripts/sync-openapi.mjs --check
 
-echo "== MCP: unit tests, bundle freshness, live smoke (unpaid)"
-[ -d mcp/node_modules ] || (cd mcp && npm ci --silent)
-log=$(cd mcp && npm run --silent build && npm test --silent 2>&1) || { echo "$log"; exit 1; }
-grep -E '^ℹ (pass|fail)' <<<"$log"
-tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-(cd mcp && cp bundle/agents-trust-mcp.mjs "$tmp/bundle.mjs" && cp bundle/THIRD_PARTY_NOTICES.txt "$tmp/notices.txt" \
-  && npm run --silent bundle >/dev/null && cmp -s bundle/agents-trust-mcp.mjs "$tmp/bundle.mjs" && cmp -s bundle/THIRD_PARTY_NOTICES.txt "$tmp/notices.txt" \
-  && echo "bundle and third-party notices up to date" || { echo "bundle or notices were stale: rebuilt, commit them"; exit 1; })
-(cd mcp && npm run --silent smoke 2>/dev/null)
+echo "== MCP: typecheck, lint, offline tests, build and stdio smoke"
+[ -d mcp/node_modules ] || (cd mcp && npm ci)
+(cd mcp && npm run typecheck && npm run lint && npm test && npm run build && npm run smoke)
 
 echo "== examples: unpaid quotes"
 expect_payable() { # name, output

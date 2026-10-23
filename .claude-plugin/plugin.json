@@ -2,7 +2,7 @@
   "name": "agents-trust",
   "displayName": "Agents Trust",
   "version": "0.1.0",
-  "description": "Find a paid API for a task: ranked x402-paid APIs with price, payment network, invocation details and live payment-challenge evidence. Quotes without a wallet; pays only with your own wallet under your own cap.",
+  "description": "Find APIs and inspect endpoint evidence. Quote-only by default; paid mode needs explicit wallet-owner opt-in.",
   "author": {
     "name": "Agents Trust",
     "email": "hello@agents-trust.com",
@@ -19,23 +19,30 @@
     "mcp"
   ],
   "userConfig": {
-    "evm_private_key": {
+    "wallet_key": {
       "type": "string",
-      "title": "Base wallet private key (optional)",
-      "description": "Leave empty for quote-only mode: the recommend tool then never pays. If set, it pays the Agents Trust fee in USDC on Base from this wallet, up to the caps below. Use a dedicated hot wallet with a small balance.",
-      "sensitive": true
+      "title": "Wallet private key",
+      "description": "Optional Base USDC wallet key; payments also require explicit owner opt-in.",
+      "sensitive": true,
+      "required": false
     },
-    "max_fee_usdc": {
+    "max_call_usdc": {
       "type": "string",
-      "title": "Max fee per query (USDC)",
-      "description": "The highest Agents Trust fee the tool may sign for one query. The fee is currently 0.01 USDC; the cap leaves room for a price change.",
-      "default": "0.05"
+      "title": "Maximum fee (USDC)",
+      "description": "Maximum Recommend or Inspect fee",
+      "default": "0.01"
     },
-    "max_total_usdc": {
+    "session_cap_usdc": {
       "type": "string",
-      "title": "Max total spend while running (USDC)",
-      "description": "The most the tool may spend in total before the server restarts.",
-      "default": "0.25"
+      "title": "Session cap (USDC)",
+      "description": "Per-process reservation cap",
+      "default": "0.01"
+    },
+    "enable_payments": {
+      "type": "boolean",
+      "title": "Allow one payment authorization",
+      "description": "Owner grant for one authorization per process, including failed or uncertain submissions. Restarting resets this grant. No per-call confirmation.",
+      "default": false
     }
   }
 }

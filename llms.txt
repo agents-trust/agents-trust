@@ -25,7 +25,7 @@ Use a client that exposes response headers. A text-only web-fetch tool may repor
 - [curl quote](https://github.com/agents-trust/agents-trust/blob/main/examples/curl/quote.sh): unpaid, prints the terms and stops
 - [Python](https://github.com/agents-trust/agents-trust/tree/main/examples/python): quote.py (unpaid), paid.py (your wallet)
 - [TypeScript](https://github.com/agents-trust/agents-trust/tree/main/examples/typescript): quote.ts (unpaid), paid.ts (your wallet)
-- [MCP server](https://github.com/agents-trust/agents-trust/tree/main/mcp): recommend and get_receipt tools; quote-only without a wallet
+- [MCP server](https://github.com/agents-trust/agents-trust/tree/main/mcp): recommend, inspect, receipt and health tools; quote-only by default
 
 ## Optional
 

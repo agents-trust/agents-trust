@@ -1,0 +1,13 @@
+{
+  "name": "agents-trust",
+  "version": "0.1.0",
+  "description": "Find APIs and inspect endpoint evidence. Quote-only by default. Build mcp/ before enabling.",
+  "mcpServers": {
+    "agents-trust": {
+      "command": "node",
+      "args": [
+        "${extensionPath}/mcp/dist/index.js"
+      ]
+    }
+  }
+}
