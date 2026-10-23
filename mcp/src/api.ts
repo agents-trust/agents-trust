@@ -42,6 +42,16 @@ export function units(value: string): bigint {
   return BigInt(whole!) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
 }
 
+function usdc(amount: bigint): string {
+  return `${amount / 1_000_000n}.${(amount % 1_000_000n).toString().padStart(6, '0')}`.replace(/0+$/, '').replace(/\.$/, '');
+}
+export class PaymentRefusal extends Error {
+  constructor(public readonly code: string, message: string, public readonly fee_usdc: string | null = null) { super(message); }
+}
+function payment(state: 'paid' | 'free' | 'quote', fee_usdc: string | null, attempt_id: string | null = null) {
+  return { state, fee_usdc, attempt_id, receipt_tool: attempt_id ? 'receipt' : null };
+}
+
 // The free body is catalog data, never paid evidence or ranking.
 function catalogPreview(value: unknown, fee: string) {
   if (!value || typeof value !== 'object') return undefined;
@@ -63,7 +73,6 @@ function catalogPreview(value: unknown, fee: string) {
   return { candidates, ranked: false,
     note: `not ranked; ${fee} for the ranked recommendation with evidence`,
     ...(candidates.length === 0 || malformed || typeof data.reason === 'string' ? { reason } : {}) };
-
 }
 
 export class AgentsTrustApi {
@@ -103,8 +112,8 @@ export class AgentsTrustApi {
     const offer = required.accepts.find(clientSupports);
     if (!offer) throw new Error('No supported Base USDC payment offer. No payment sent.');
     const amount = BigInt(offer.amount);
-    if (amount > this.maxCall) throw new Error('Price exceeds AGENTS_TRUST_MAX_CALL_USDC. No payment sent.');
-    if (this.spent + amount > this.sessionCap) throw new Error('Session spend cap reached. No payment sent.');
+    if (amount > this.maxCall) throw new PaymentRefusal('fee_cap_exceeded', `Price exceeds AGENTS_TRUST_MAX_CALL_USDC: price ${usdc(amount)} USDC > cap ${usdc(this.maxCall)} USDC. No payment sent.`, usdc(amount));
+    if (this.spent + amount > this.sessionCap) throw new PaymentRefusal('fee_cap_exceeded', `Session spend cap reached: price ${usdc(amount)} USDC > remaining cap ${usdc(this.sessionCap - this.spent)} USDC. No payment sent.`, usdc(amount));
     return offer;
   }
 
@@ -117,6 +126,7 @@ export class AgentsTrustApi {
     for (const [name, value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(name, String(value));
     let response: Response;
     let paymentSubmitted = false;
+    let submittedAmount: bigint | null = null;
     try { response = await this.send(url.href); }
     catch { throw new Error('Agents Trust request failed.'); }
     if (response.status === 402 && paid) {
@@ -129,7 +139,7 @@ export class AgentsTrustApi {
         const quoted = terms.accepts.find(clientSupports);
         const amount = quoted ? BigInt(quoted.amount) : null;
         const fee = amount === null ? 'payment required'
-          : `pay ${`${amount / 1_000_000n}.${(amount % 1_000_000n).toString().padStart(6, '0')}`.replace(/0+$/, '').replace(/\.$/, '')} USDC`;
+          : `pay ${usdc(amount)} USDC`;
         let preview;
         if (path === '/recommend') {
           try { preview = catalogPreview(await response.json(), fee); } catch { /* Older Workers may return only a header. */ }
@@ -137,6 +147,7 @@ export class AgentsTrustApi {
         return {
           data: {
             ...(preview ? { preview } : {}),
+            code: 'payments_disabled',
             mode: 'quote-only', outcome: 'payment_required', http_status: 402, url: url.href,
             payment_required: true, payment_submitted: false,
             provider_matches: 'unknown', filters_evaluated: false,
@@ -153,12 +164,13 @@ export class AgentsTrustApi {
               amount: offer.amount, payTo: offer.payTo, maxTimeoutSeconds: offer.maxTimeoutSeconds,
             })),
           },
+          payment: payment('quote', amount === null ? null : usdc(amount)),
           payment_attempt_id: null,
           request_id: response.headers.get('x-at-request-id'),
         };
       }
-      if (this.authorizationUsed) throw new Error('Payment authorization already used in this process. Check your wallet and receipt before granting another process permission.');
-      if (!this.settings.walletKey) throw new Error('Set AGENTS_TRUST_WALLET_PRIVATE_KEY to pay with Base USDC.');
+      if (this.authorizationUsed) throw new PaymentRefusal('authorization_consumed', 'Payment authorization already used in this process. Start a fresh process only after checking your wallet and receipt and obtaining a new owner authorization.');
+      if (!this.settings.walletKey) throw new PaymentRefusal('payments_disabled', 'Set AGENTS_TRUST_WALLET_PRIVATE_KEY to pay with Base USDC. No wallet configured; no payment sent.');
       try {
         const account = privateKeyToAccount(this.settings.walletKey as `0x${string}`);
         const client = new x402Client().register('eip155:8453', new ExactEvmScheme(account));
@@ -171,13 +183,15 @@ export class AgentsTrustApi {
           ? `${ORIGIN}/inspect?url=${encodeURIComponent(`${endpoint.protocol}//${endpoint.host}${endpoint.pathname}${endpoint.search}`)}`
           : url.href;
         const offer = this.select(required, resource);
-        this.spent += BigInt(offer.amount);
+        submittedAmount = BigInt(offer.amount);
+        this.spent += submittedAmount;
         this.authorizationUsed = true;
         const payload = await http.createPaymentPayload({ ...required, accepts: [offer] });
         // Preserve the challenge extensions; never automatically retry an authorization.
         paymentSubmitted = true;
         response = await this.send(url.href, http.encodePaymentSignatureHeader(payload));
       } catch (error) {
+        if (error instanceof PaymentRefusal) throw error;
         if (error instanceof Error && /^(Price exceeds|Session spend cap|No supported Base|Unsupported payment)/.test(error.message)) throw error;
         // Discard upstream error details: they can contain signing inputs.
         throw new Error('Payment could not complete. Budget remains reserved; check your wallet and receipt before another call.');
@@ -196,6 +210,7 @@ export class AgentsTrustApi {
               url: params.url, payment_required: false, payment_submitted: false,
               message: 'This exact endpoint URL is not indexed by Agents Trust. The lookup was free; no payment authorization was submitted and no provider was called. This says nothing about provider quality or availability and is not a service outage.',
             },
+            payment: payment('free', '0'),
             payment_attempt_id: null,
             request_id: response.headers.get('x-at-request-id'),
           };
@@ -205,8 +220,14 @@ export class AgentsTrustApi {
     if (!response.ok) throw new Error(`Agents Trust returned HTTP ${response.status}. No automatic retry was made.`);
     try {
       const body: unknown = await response.json();
+      const attempt = response.headers.get('x-at-payment-attempt-id');
+      const settled = paymentSubmitted && response.headers.get('x-at-payment-state') !== 'verified';
       return {
         data: body,
+        ...(paid ? {
+          payment: payment(settled ? 'paid' : 'free', settled && submittedAmount !== null ? usdc(submittedAmount) : '0', attempt),
+          message: settled ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}` : 'Free result; no fee settled.',
+        } : {}),
         ...(paid ? { evidence_guide: evidenceGuide } : {}),
         payment_attempt_id: response.headers.get('x-at-payment-attempt-id'),
         request_id: response.headers.get('x-at-request-id'),

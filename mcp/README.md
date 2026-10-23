@@ -175,3 +175,9 @@ call-readiness and a missing required-parameter list do not prove inputs are
 optional. Compare input and output schema `current_offer_match` independently:
 true matches that component to the offer, false does not, and null is unknown.
 A matching input cannot clear a stale output capture. Neither implies execution.
+
+Recommend and Inspect results include `payment` with `state` (`paid`, `free`, or
+`quote`), `fee_usdc`, `attempt_id`, and `receipt_tool`. Paid results state the fee
+and attempt explicitly; free demo results remain free. Refusals distinguish
+`fee_cap_exceeded`, `authorization_consumed`, and `payments_disabled`. A fresh
+process requires a new owner authorization; never retry an uncertain payment.
