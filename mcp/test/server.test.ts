@@ -76,3 +76,21 @@ it('never emits a wallet key in errors, results, stdout or stderr', async () => 
     expect(outputs.some(s => s.includes(key))).toBe(false);
   } finally { out.mockRestore(); err.mockRestore(); await client.close(); await server.close(); }
 });
+
+it('returns a machine-readable fee-cap refusal through MCP', async () => {
+  const terms = { ...fixture, resource: { ...fixture.resource, url: 'https://api.agents-trust.com/recommend?need=weather' } };
+  const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 402, headers: {
+    'payment-required': Buffer.from(JSON.stringify(terms)).toString('base64'),
+  } }));
+  const server = createServer({ enablePayments: true, walletKey: generatePrivateKey(), maxCallUsdc: '0.001' }, request);
+  const client = new Client({ name: 'test', version: '1' });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(a); await client.connect(b);
+    const result = await client.callTool({ name: 'recommend', arguments: { need: 'weather' } });
+    expect(result.isError).toBe(true);
+    expect(JSON.parse((result.content as { text: string }[])[0]!.text)).toMatchObject({ code: 'fee_cap_exceeded',
+      payment: { state: 'quote', fee_usdc: '0.01' } });
+    expect(request).toHaveBeenCalledTimes(1);
+  } finally { await client.close(); await server.close(); }
+});
