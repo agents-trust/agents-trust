@@ -4,13 +4,13 @@
 
 Call: GET https://api.agents-trust.com/recommend?need=<phrase>&limit=<1-5>&view=compact
 
-An unpaid GET answers 402 with an empty body. The terms are in the base64 PAYMENT-REQUIRED header (x402 v2). Replay the identical request with PAYMENT-SIGNATURE from your own wallet. The paid answer arrives before settlement with x-at-payment-attempt-id; GET /receipt?payment_attempt_id=<id> is free. Always send need: a bare /recommend returns an unpayable quote. The needs "weather", "crypto prices" and "web search" are free demos. max_price_usd caps the provider's price, not the Agents Trust fee.
+An unpaid paid-task GET answers 402. Its JSON body mirrors the payment envelope in the base64 PAYMENT-REQUIRED header (x402 v2). Replay the identical request with PAYMENT-SIGNATURE from your own wallet. The paid answer arrives before settlement with x-at-payment-attempt-id; GET /receipt?payment_attempt_id=<id> is free. Always send need: a bare unsigned /recommend returns a discovery-only quote; supply need and fetch that exact request’s quote before signing. The needs "weather", "crypto prices" and "web search" are free demos. max_price_usd caps the provider's price, not the Agents Trust fee.
 
 Recommend vs Inspect: Recommend takes a task and returns ranked candidates. Inspect (GET /inspect?url=<endpoint>) takes one endpoint URL and returns the evidence held for it: reachability, payment challenge, request contract, provider score. Inspect costs 1% of the target's lowest quoted price, minimum 0.001 USDC; a URL with no record returns a free 404 ENDPOINT_NOT_INDEXED. Neither route calls or pays the provider.
 
 Complete unpaid example: GET https://api.agents-trust.com/recommend?need=weather%20forecast&view=compact
 
-Use a client that exposes response headers. A text-only web-fetch tool may report 402 without exposing PAYMENT-REQUIRED, so it cannot check the offer. Without a wallet, read the quote and stop.
+Use a client that preserves response headers or the 402 JSON body. A tool that discards both cannot inspect the offer. Without a wallet and an approved budget, read the quote and stop.
 
 ## Docs
 
@@ -31,3 +31,7 @@ Use a client that exposes response headers. A text-only web-fetch tool may repor
 
 - [Full reference](https://agents-trust.com/docs/)
 - [Methodology](https://agents-trust.com/about#methodology): evidence tiers are provisional, not an endorsement
+
+## Canonical runtime reference
+
+The maintained caller reference is https://agents-trust.com/llms.txt and the live API contract is https://api.agents-trust.com/openapi.json. This repository documents installation and package usage; its OpenAPI subset is generated from that live contract by scripts/sync-openapi.mjs. Runtime parameters, price quotes and payment behavior come from the canonical API reference rather than a separately maintained schema here.
