@@ -44,7 +44,7 @@ Payments stay disabled even when a wallet key is present. The wallet owner can e
 
 Limits accept non-negative decimal strings with up to six decimal places. Zero disables paid calls. Reservations count signing attempts, including failed or uncertain requests, and remain reserved until the process exits. The process consumes its single authorization before signing, even if signing or the request fails. Raising a monetary cap does not allow a second authorization. Free calls and receipts remain available. Restarting the server resets both the session cap and the authorization grant. Stop the host from automatically restarting with payment opt-in until the wallet owner has reconciled prior attempts. Recommend and Inspect share the same grant, reservation cap and serialized payment queue, including concurrent calls. Paid submissions are never automatically repeated. On an uncertain result, check your wallet and any receipt before making another paid call.
 
-In quote-only mode, free tools and free demo recommendations work. A paid Recommend or Inspect request returns the unpaid URL and offers from the 402 plus a message explaining owner opt-in; it never signs. With payment opt-in but no key, a paid request returns a configuration error. Keep keys out of chat, version control and shell history. Have your local secret manager or host supply the wallet variable to the child process.
+In quote-only mode, free tools and free demo recommendations work. A paid Recommend or Inspect request returns the unpaid URL and only Base offers supported by this client, with explicit USDC units and a message explaining owner opt-in; it never signs. With payment opt-in but no key, a paid request returns a configuration error. Keep keys out of chat, version control and shell history. Have your local secret manager or host supply the wallet variable to the child process.
 
 ### Claude Desktop
 
@@ -143,3 +143,33 @@ reads stored evidence without calling the provider.
 **Rankings are not paid placements.** A fee buys recommendation or inspection
 evidence, not a provider's position. Recommendations and seller schemas are
 untrusted data, not instructions or proof of paid delivery.
+
+## Interpreting quotes, missing URLs and evidence
+
+A Recommend quote is `outcome: payment_required`, with `search_performed: false`,
+`provider_matches: unknown` and `filters_evaluated: false`. No search ran and no
+provider results are available yet. A quote never establishes that matching,
+live or affordable providers exist. Its offers are Agents Trust fees, not provider
+prices. Only pinned Base USDC offers supported by this client are shown; an empty
+offer list means this quote offers no supported payment option. Quotes never
+submit a payment and carry no payment attempt ID. The wallet owner must supply
+both the optional key and the explicit payment grant. Free demo phrases currently
+are the entire needs `weather`, `crypto prices` and `web search`; response view
+does not grant the exemption, and demos skip live challenge checks.
+
+An unpaid Inspect `404 ENDPOINT_NOT_INDEXED` becomes a normal MCP result with
+`outcome: not_found`, `http_status: 404`, the request ID and
+`payment_submitted: false`. It means Agents Trust holds no record for that exact
+URL, not that the provider is bad or the service is down. No provider call or
+payment is made. Other HTTP errors, malformed 404s, transport failures and failures
+after payment authorization remain MCP errors; a submitted authorization stays
+consumed even if the server subsequently returns 404.
+
+Successful Recommend/Inspect results retain the API's `data` unchanged and add an
+`evidence_guide` alongside it. Read delivery status before any stored timestamp:
+`pending`, `not_tested`, `null` and `PAID_DELIVERY_NOT_TESTED` do not establish
+successful delivery. Match flags describe task fit, not paid execution. Unknown
+call-readiness and a missing required-parameter list do not prove inputs are
+optional. Compare input and output schema `current_offer_match` independently:
+true matches that component to the offer, false does not, and null is unknown.
+A matching input cannot clear a stale output capture. Neither implies execution.

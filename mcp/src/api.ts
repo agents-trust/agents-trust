@@ -6,6 +6,29 @@ import { privateKeyToAccount } from 'viem/accounts';
 const ORIGIN = 'https://api.agents-trust.com';
 const USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 const PAYEE = '0x96368628b679a459fe69815bacca5cb0232ac397';
+
+// Capability is separate from the owner's monetary caps and authorization grant.
+function clientSupports(offer: PaymentRequirements): boolean {
+  return offer?.scheme === 'exact' && offer.network === 'eip155:8453'
+    && typeof offer.asset === 'string' && offer.asset.toLowerCase() === USDC
+    && typeof offer.payTo === 'string' && offer.payTo.toLowerCase() === PAYEE
+    && typeof offer.amount === 'string' && /^[1-9]\d*$/.test(offer.amount)
+    && Number.isInteger(offer.maxTimeoutSeconds) && offer.maxTimeoutSeconds > 0 && offer.maxTimeoutSeconds <= 300
+    && offer.extra?.name === 'USD Coin' && offer.extra?.version === '2'
+    && (offer.extra?.assetTransferMethod === undefined || offer.extra.assetTransferMethod === 'eip3009');
+}
+
+const evidenceGuide = {
+  delivery_verification: 'Read status first: pending, not_tested or null do not establish successful paid delivery; last_verified_at alone does not prove success.',
+  PAID_DELIVERY_NOT_TESTED: 'Paid provider delivery has not been established; neither a challenge nor a stored timestamp proves it.',
+  match_strength: 'strong/weak describe task fit, not guaranteed capability or paid delivery; WEAK_MATCH warns that the candidate may not fit.',
+  risk_flags: 'Warnings to check before using a candidate; absence of a warning is not proof of success.',
+  call_readiness: 'unknown or null means call requirements are not established; a missing required list does not prove every parameter is optional.',
+  current_offer_match: 'Compare invocation.freshness.input_schema and output_schema separately: true matches that component to the current offer, false does not, null is unknown; none proves successful execution.',
+  INVOCATION_CAPTURE_STALE: 'Check each schema component current_offer_match to identify the stale or unmatched capture; do not infer it from timestamps alone.',
+  null: 'Unknown or unjudged, never zero, false or verified.',
+  liveness: 'Reachability or payment-challenge evidence at the stated time, not proof of paid provider delivery.',
+};
 export type Settings = {
   walletKey?: string;
   enablePayments?: boolean;
@@ -53,12 +76,7 @@ export class AgentsTrustApi {
     if (required.x402Version !== 2 || required.resource?.url !== url || !Array.isArray(required.accepts)) {
       throw new Error('Unsupported payment challenge. No payment sent.');
     }
-    const offer = required.accepts.find(o => o.scheme === 'exact' && o.network === 'eip155:8453'
-      && o.asset.toLowerCase() === USDC && o.payTo.toLowerCase() === PAYEE
-      && typeof o.amount === 'string' && /^[1-9]\d*$/.test(o.amount)
-      && Number.isInteger(o.maxTimeoutSeconds) && o.maxTimeoutSeconds > 0 && o.maxTimeoutSeconds <= 300
-      && o.extra?.name === 'USD Coin' && o.extra?.version === '2'
-      && (o.extra?.assetTransferMethod === undefined || o.extra.assetTransferMethod === 'eip3009'));
+    const offer = required.accepts.find(clientSupports);
     if (!offer) throw new Error('No supported Base USDC payment offer. No payment sent.');
     const amount = BigInt(offer.amount);
     if (amount > this.maxCall) throw new Error('Price exceeds AGENTS_TRUST_MAX_CALL_USDC. No payment sent.');
@@ -74,6 +92,7 @@ export class AgentsTrustApi {
     const url = new URL(path, ORIGIN);
     for (const [name, value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(name, String(value));
     let response: Response;
+    let paymentSubmitted = false;
     try { response = await this.send(url.href); }
     catch { throw new Error('Agents Trust request failed.'); }
     if (response.status === 402 && paid) {
@@ -85,9 +104,18 @@ export class AgentsTrustApi {
         } catch { throw new Error('Agents Trust returned an unreadable quote. No payment sent.'); }
         return {
           data: {
-            mode: 'quote-only', url: url.href,
-            message: 'Payments disabled. The wallet owner must configure AGENTS_TRUST_ENABLE_PAYMENTS=true for one authorization per process.',
-            offers: terms.accepts.map(offer => ({
+            mode: 'quote-only', outcome: 'payment_required', http_status: 402, url: url.href,
+            payment_required: true, payment_submitted: false,
+            provider_matches: 'unknown', filters_evaluated: false,
+            ...(path === '/recommend' ? { search_performed: false } : {}),
+            message: `${path === '/recommend'
+              ? 'No search ran. No provider results yet. Payment is required to see matches; this quote does not establish that any provider matches your task or filters.'
+              : 'No endpoint evidence returned yet. This is only an Inspect fee quote, not evidence about the provider.'} Payments disabled. The wallet owner must supply AGENTS_TRUST_WALLET_PRIVATE_KEY for a Base USDC wallet and AGENTS_TRUST_ENABLE_PAYMENTS=true for one authorization per process, within AGENTS_TRUST_MAX_CALL_USDC and AGENTS_TRUST_SESSION_CAP_USDC.`,
+            client_payment_network: 'eip155:8453',
+            offer_scope: 'Only offers supported by this Base USDC client are shown. These are Agents Trust fees, not provider prices. Support does not override owner opt-in or spend caps.',
+            offers: terms.accepts.filter(clientSupports).map(offer => ({
+              client_supported: true, decimals: 6,
+              amount_usdc: `${BigInt(offer.amount) / 1_000_000n}.${(BigInt(offer.amount) % 1_000_000n).toString().padStart(6, '0')}`,
               scheme: offer.scheme, network: offer.network, asset: offer.asset,
               amount: offer.amount, payTo: offer.payTo, maxTimeoutSeconds: offer.maxTimeoutSeconds,
             })),
@@ -114,6 +142,7 @@ export class AgentsTrustApi {
         this.authorizationUsed = true;
         const payload = await http.createPaymentPayload({ ...required, accepts: [offer] });
         // Preserve the challenge extensions; never automatically retry an authorization.
+        paymentSubmitted = true;
         response = await this.send(url.href, http.encodePaymentSignatureHeader(payload));
       } catch (error) {
         if (error instanceof Error && /^(Price exceeds|Session spend cap|No supported Base|Unsupported payment)/.test(error.message)) throw error;
@@ -121,11 +150,31 @@ export class AgentsTrustApi {
         throw new Error('Payment could not complete. Budget remains reserved; check your wallet and receipt before another call.');
       }
     }
+    // Only this unpaid semantic response is a normal lookup miss. Other HTTP,
+    // transport and post-authorization failures retain the error path.
+    if (path === '/inspect' && response.status === 404 && !paymentSubmitted) {
+      const body: unknown = await response.clone().json().catch(() => null);
+      if (body && typeof body === 'object' && 'error' in body) {
+        const error = body.error;
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENDPOINT_NOT_INDEXED') {
+          return {
+            data: {
+              outcome: 'not_found', http_status: 404, code: 'ENDPOINT_NOT_INDEXED',
+              url: params.url, payment_required: false, payment_submitted: false,
+              message: 'This exact endpoint URL is not indexed by Agents Trust. The lookup was free; no payment authorization was submitted and no provider was called. This says nothing about provider quality or availability and is not a service outage.',
+            },
+            payment_attempt_id: null,
+            request_id: response.headers.get('x-at-request-id'),
+          };
+        }
+      }
+    }
     if (!response.ok) throw new Error(`Agents Trust returned HTTP ${response.status}. No automatic retry was made.`);
     try {
       const body: unknown = await response.json();
       return {
         data: body,
+        ...(paid ? { evidence_guide: evidenceGuide } : {}),
         payment_attempt_id: response.headers.get('x-at-payment-attempt-id'),
         request_id: response.headers.get('x-at-request-id'),
       };

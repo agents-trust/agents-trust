@@ -135,7 +135,7 @@ describe('Inspect through the existing payment client', () => {
     const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ error: { code: 'ENDPOINT_NOT_INDEXED' } }, { status: 404 }))
       .mockResolvedValueOnce(challenge(recommendResource)).mockResolvedValueOnce(success());
     const api = new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request);
-    await expect(api.inspect(params)).rejects.toThrow('HTTP 404');
+    await expect(api.inspect(params)).resolves.toMatchObject({ data: { outcome: 'not_found', http_status: 404, payment_submitted: false } });
     await expect(api.recommend({ need: 'weather forecast' })).resolves.toHaveProperty('data');
     expect(request.mock.calls.filter(([, init]) => init?.headers)).toHaveLength(1);
   });

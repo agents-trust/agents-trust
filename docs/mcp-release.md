@@ -65,3 +65,15 @@ privacy/operator pages, Anthropic permission for the paying mode and a Hermes
 per-payment approval integration remain account/product prerequisites from
 [issue #3](https://github.com/agents-trust/agents-trust/issues/3); this PR does
 not claim store acceptance or replace those decisions. Field test first.
+
+## Hermes field-test fixes on PR #4
+
+The first field test at `480e4a976` found seven tool-facing problems. The follow-up
+makes unsearched quotes and unknown matches explicit, limits quoted payment offers
+to supported Base USDC, supplies fee/demo/wallet-owner configuration in tools/list,
+explains CAIP-2/live/provider-price semantics, treats confirmed unpaid unindexed
+URLs as normal not_found results, adds plain evidence meanings without changing
+API data, and exposes runtime input bounds in field descriptions. Offline
+regressions cover each finding, including preservation of genuine error paths
+and of the consumed grant after a signed 404. The natural-task rerun and live
+payment field test remain separate evidence from these automated checks.
