@@ -2,7 +2,7 @@
 
 This Agent Plugins v1 package supplies an MCP launcher and a focused API-choice
 skill. It starts the separately installed `agents-trust-mcp` executable; it
-never downloads or installs code at runtime. Node 20.19+, 22.13+ or 24 is required.
+never downloads or installs code at runtime. This launcher supports Linux and macOS; Node20.19+, 22.13+ or24 is required.
 
 ## Install
 

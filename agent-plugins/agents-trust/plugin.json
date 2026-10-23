@@ -41,15 +41,6 @@
                   "name": "agents-trust-mcp"
                 }
               ]
-            },
-            "win32": {
-              "presence": "executable",
-              "location": [
-                {
-                  "kind": "command",
-                  "name": "agents-trust-mcp"
-                }
-              ]
             }
           }
         }
