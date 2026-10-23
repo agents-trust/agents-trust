@@ -1,0 +1,59 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agents-trust",
+  "version": "0.1.0",
+  "description": "Recommend which x402 API to use and inspect endpoint evidence. Quotes by default; optional owner-funded calls require Hermes approval.",
+  "author": {
+    "name": "Intentra Labs",
+    "url": "https://agents-trust.com"
+  },
+  "homepage": "https://agents-trust.com",
+  "repository": "https://github.com/agents-trust/agents-trust",
+  "license": "MIT",
+  "keywords": [
+    "x402",
+    "api-discovery",
+    "mcp"
+  ],
+  "extensions": {
+    "com.nousresearch.hermes": {
+      "servers": {
+        "agents-trust": {
+          "trust": "untrusted",
+          "requires": {
+            "app": true
+          },
+          "app": {
+            "darwin": {
+              "presence": "executable",
+              "location": [
+                {
+                  "kind": "command",
+                  "name": "agents-trust-mcp"
+                }
+              ]
+            },
+            "linux": {
+              "presence": "executable",
+              "location": [
+                {
+                  "kind": "command",
+                  "name": "agents-trust-mcp"
+                }
+              ]
+            },
+            "win32": {
+              "presence": "executable",
+              "location": [
+                {
+                  "kind": "command",
+                  "name": "agents-trust-mcp"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
