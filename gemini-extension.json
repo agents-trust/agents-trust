@@ -1,7 +1,7 @@
 {
   "name": "agents-trust",
   "version": "0.1.0",
-  "description": "Find APIs and inspect endpoint evidence. Quote-only by default. Build mcp/ before enabling.",
+  "description": "Discover which x402 API to use for a task and inspect endpoint evidence. Quotes by default; build mcp/ first. Three fixed demo needs are free.",
   "mcpServers": {
     "agents-trust": {
       "command": "node",
