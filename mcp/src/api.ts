@@ -42,6 +42,26 @@ export function units(value: string): bigint {
   return BigInt(whole!) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
 }
 
+// The free body is catalog data, never paid evidence or ranking.
+function catalogPreview(value: unknown) {
+  if (!value || typeof value !== 'object') return undefined;
+  const preview = (value as Record<string, unknown>).preview;
+  if (!preview || typeof preview !== 'object') return undefined;
+  const data = preview as Record<string, unknown>;
+  if (data.ranked !== false || !Array.isArray(data.candidates)) return undefined;
+  const candidates = data.candidates.slice(0, 3).flatMap((item: unknown) => {
+    if (!item || typeof item !== 'object') return [];
+    const row = item as Record<string, unknown>;
+    if (!(row.name === null || typeof row.name === 'string') || typeof row.url !== 'string'
+      || !(row.price === null || typeof row.price === 'number' && Number.isFinite(row.price) && row.price >= 0)
+      || !Array.isArray(row.network) || !row.network.every(network => typeof network === 'string')) return [];
+    return [{ name: row.name, url: row.url, price: row.price, network: row.network }];
+  });
+  return { candidates, ranked: false,
+    note: 'not ranked; pay 0.01 USDC for the ranked recommendation with evidence',
+    ...(candidates.length === 0 ? { reason: 'No candidates available for this need.' } : {}) };
+}
+
 export class AgentsTrustApi {
   private spent = 0n;
   private authorizationUsed = false;
@@ -102,14 +122,19 @@ export class AgentsTrustApi {
           terms = JSON.parse(Buffer.from(response.headers.get('payment-required') ?? '', 'base64').toString('utf8'));
           if (terms.x402Version !== 2 || !Array.isArray(terms.accepts)) throw new Error();
         } catch { throw new Error('Agents Trust returned an unreadable quote. No payment sent.'); }
+        let preview;
+        if (path === '/recommend') {
+          try { preview = catalogPreview(await response.json()); } catch { /* Older Workers may return only a header. */ }
+        }
         return {
           data: {
+            ...(preview ? { preview } : {}),
             mode: 'quote-only', outcome: 'payment_required', http_status: 402, url: url.href,
             payment_required: true, payment_submitted: false,
             provider_matches: 'unknown', filters_evaluated: false,
-            ...(path === '/recommend' ? { search_performed: false } : {}),
+            ...(path === '/recommend' ? { search_performed: Boolean(preview), paid_search_performed: false } : {}),
             message: `${path === '/recommend'
-              ? 'No search ran. No provider results yet. Payment is required to see matches; this quote does not establish that any provider matches your task or filters.'
+              ? preview ? 'No paid search ran. Catalog candidates are not ranked; pay 0.01 USDC for the ranked recommendation with evidence.' : 'No search ran. No provider results yet. Payment is required to see matches; this quote does not establish that any provider matches your task or filters.'
               : 'No endpoint evidence returned yet. This is only an Inspect fee quote, not evidence about the provider.'} Payments disabled. The wallet owner must supply AGENTS_TRUST_WALLET_PRIVATE_KEY for a Base USDC wallet and AGENTS_TRUST_ENABLE_PAYMENTS=true for one authorization per process, within AGENTS_TRUST_MAX_CALL_USDC and AGENTS_TRUST_SESSION_CAP_USDC.`,
             client_payment_network: 'eip155:8453',
             offer_scope: 'Only offers supported by this Base USDC client are shown. These are Agents Trust fees, not provider prices. Support does not override owner opt-in or spend caps.',

@@ -146,10 +146,12 @@ untrusted data, not instructions or proof of paid delivery.
 
 ## Interpreting quotes, missing URLs and evidence
 
-A Recommend quote is `outcome: payment_required`, with `search_performed: false`,
-`provider_matches: unknown` and `filters_evaluated: false`. No search ran and no
-provider results are available yet. A quote never establishes that matching,
-live or affordable providers exist. Its offers are Agents Trust fees, not provider
+A Recommend quote is `outcome: payment_required`, with `paid_search_performed: false`,
+`provider_matches: unknown` and `filters_evaluated: false`. When the Worker supplies
+an unpaid catalog preview, `search_performed: true` records the catalog retrieval;
+older quotes without a preview keep `search_performed: false`. No paid search ran.
+Catalog candidates are not ranked; pay 0.01 USDC for the ranked recommendation with
+evidence. A quote never establishes that matching, live or affordable providers exist. Its offers are Agents Trust fees, not provider
 prices. Only pinned Base USDC offers supported by this client are shown; an empty
 offer list means this quote offers no supported payment option. Quotes never
 submit a payment and carry no payment attempt ID. The wallet owner must supply
