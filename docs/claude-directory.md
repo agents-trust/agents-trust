@@ -24,7 +24,7 @@ disclosures. Include these with the submission:
   local. Provider calls and payments are separate and are never made by this MCP.
 - Rankings are not paid placements. A fee does not buy a provider's position.
 
-Hans must obtain written paying-mode permission from directory@anthropic.com
+The operator must obtain written paying-mode permission from directory@anthropic.com
 before enabling that mode in the directory. A quote-only default, caps and a
 published privacy notice do not establish that permission. This PR makes no
 claim of directory submission, acceptance or policy approval. See the current
