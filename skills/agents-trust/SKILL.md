@@ -139,8 +139,13 @@ present. Paid mode requires the wallet owner's explicit runtime grant of
 `AGENTS_TRUST_ENABLE_PAYMENTS=true` and the optional
 `AGENTS_TRUST_WALLET_PRIVATE_KEY`. The grant permits one authorization per
 process within the configured per-call and session caps; failed or uncertain
-submissions consume it too. There is no per-call human prompt. Restart resets
-the grant, so reconcile the prior attempt before restarting with payment enabled.
+submissions consume it too. The MCP server has no human prompt of its own.
+For the Hermes plugin, paying calls require **Allow Once** for each call.
+Session/Always grants, YOLO and `approvals.mode: off` can skip later approval
+prompts; keep payments disabled whenever approval can be skipped, including
+unattended contexts. The plugin's untrusted setting does not override those
+host choices. Restart resets the process grant, so reconcile the prior attempt
+before restarting with payment enabled.
 `receipt` and `health` are free. See [MCP configuration](../../mcp/README.md).
 
 ## Free routes on the same host
