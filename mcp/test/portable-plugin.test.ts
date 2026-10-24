@@ -8,7 +8,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer } from '../src/server.js';
 
 const root = resolve('../agent-plugins/agents-trust');
-it('keeps the portable launcher within the plugin and write-capable tools behind Hermes approval', async () => {
+it('keeps the portable launcher within the plugin and declares write-capable tool hints', async () => {
   const manifest = JSON.parse(readFileSync(join(root, 'plugin.json'), 'utf8'));
   const config = JSON.parse(readFileSync(join(root, 'mcp.json'), 'utf8'));
   expect(manifest.extensions['com.nousresearch.hermes'].servers['agents-trust'].trust).toBe('untrusted');

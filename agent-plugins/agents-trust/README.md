@@ -32,11 +32,15 @@ AGENTS_TRUST_WALLET_PRIVATE_KEY and explicitly grant
 AGENTS_TRUST_ENABLE_PAYMENTS=true, with AGENTS_TRUST_MAX_CALL_USDC and
 AGENTS_TRUST_SESSION_CAP_USDC (both default 0.01). Never put keys in this package.
 Hermes forwards only the declared optional variables. The plugin marks its
-server `untrusted`; Recommend/Inspect declare `readOnlyHint: false`, so Hermes
-asks before every such call, including quote calls. Read the live quote first
-in quote-only mode, then approve a paying call under an explicit fee cap.
-Unattended contexts without an approval surface must not pay. A native
-same-name server config can override plugin trust; do not override this guard.
+server `untrusted`; Recommend/Inspect declare `readOnlyHint: false`. Hermes
+normally prompts for these tools, but Session and Always grants allow later
+calls without another prompt, and YOLO or `approvals.mode: off` skips prompts.
+For paying calls, require **Allow Once** for each call. Keep payments disabled
+whenever approvals can be skipped, including existing Session/Always grants,
+YOLO, disabled approvals or unattended contexts without an approval surface.
+Read the quote in quote-only mode before authorizing a paying call under an
+explicit fee cap. A native same-name server config can override plugin trust;
+keep this server untrusted. The MCP server does not enforce host approval settings.
 
 One owner grant permits one authorization per process. There is no automatic
 retry. Check receipt and wallet after uncertain outcomes before authorizing
