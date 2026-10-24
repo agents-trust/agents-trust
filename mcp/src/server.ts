@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AgentsTrustApi, type Settings } from './api.js';
+import { AgentsTrustApi, PaymentFailure, PaymentRefusal, type Settings } from './api.js';
 
 export function createServer(settings: Settings = {}, request: typeof fetch = fetch) {
   const api = new AgentsTrustApi(settings, request);
@@ -11,7 +11,11 @@ export function createServer(settings: Settings = {}, request: typeof fetch = fe
       if (settings.walletKey) text = text.split(settings.walletKey).join('[redacted]');
       return { content: [{ type: 'text' as const, text }] };
     } catch (error) {
-      let text = error instanceof Error ? error.message : 'Agents Trust request failed.';
+      let text = error instanceof PaymentRefusal
+        ? JSON.stringify({ code: error.code, message: error.message,
+          payment: { state: 'refused', fee_usdc: error.fee_usdc, attempt_id: null, receipt_tool: null } })
+        : error instanceof PaymentFailure ? JSON.stringify({ message: error.message, payment: error.payment, payment_attempt_id: error.payment.attempt_id })
+        : error instanceof Error ? error.message : 'Agents Trust request failed.';
       if (settings.walletKey) text = text.split(settings.walletKey).join('[redacted]');
       return { isError: true, content: [{ type: 'text' as const, text }] };
     }

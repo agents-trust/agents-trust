@@ -42,6 +42,20 @@ export function units(value: string): bigint {
   return BigInt(whole!) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
 }
 
+function usdc(amount: bigint): string {
+  return `${amount / 1_000_000n}.${(amount % 1_000_000n).toString().padStart(6, '0')}`.replace(/0+$/, '').replace(/\.$/, '');
+}
+export class PaymentRefusal extends Error {
+  constructor(public readonly code: string, message: string, public readonly fee_usdc: string | null = null) { super(message); }
+}
+function payment(state: 'paid' | 'free' | 'quote' | 'uncertain', fee_usdc: string | null, attempt_id: string | null = null, settlement?: 'pending' | 'settled' | 'not_required') {
+  return { state, fee_usdc, attempt_id, receipt_tool: attempt_id ? 'receipt' : null, ...(settlement ? { settlement } : {}) };
+}
+type PaymentDetails = ReturnType<typeof payment>;
+export class PaymentFailure extends Error {
+  constructor(message: string, public readonly payment: PaymentDetails) { super(message); }
+}
+
 export class AgentsTrustApi {
   private spent = 0n;
   private authorizationUsed = false;
@@ -79,8 +93,8 @@ export class AgentsTrustApi {
     const offer = required.accepts.find(clientSupports);
     if (!offer) throw new Error('No supported Base USDC payment offer. No payment sent.');
     const amount = BigInt(offer.amount);
-    if (amount > this.maxCall) throw new Error('Price exceeds AGENTS_TRUST_MAX_CALL_USDC. No payment sent.');
-    if (this.spent + amount > this.sessionCap) throw new Error('Session spend cap reached. No payment sent.');
+    if (amount > this.maxCall) throw new PaymentRefusal('fee_cap_exceeded', `Price exceeds AGENTS_TRUST_MAX_CALL_USDC: price ${usdc(amount)} USDC > cap ${usdc(this.maxCall)} USDC. No payment sent.`, usdc(amount));
+    if (this.spent + amount > this.sessionCap) throw new PaymentRefusal('fee_cap_exceeded', `Session spend cap reached: price ${usdc(amount)} USDC > remaining cap ${usdc(this.sessionCap - this.spent)} USDC. No payment sent.`, usdc(amount));
     return offer;
   }
 
@@ -93,6 +107,7 @@ export class AgentsTrustApi {
     for (const [name, value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(name, String(value));
     let response: Response;
     let paymentSubmitted = false;
+    let submittedAmount: bigint | null = null;
     try { response = await this.send(url.href); }
     catch { throw new Error('Agents Trust request failed.'); }
     if (response.status === 402 && paid) {
@@ -102,8 +117,11 @@ export class AgentsTrustApi {
           terms = JSON.parse(Buffer.from(response.headers.get('payment-required') ?? '', 'base64').toString('utf8'));
           if (terms.x402Version !== 2 || !Array.isArray(terms.accepts)) throw new Error();
         } catch { throw new Error('Agents Trust returned an unreadable quote. No payment sent.'); }
+        const quoted = terms.accepts.find(clientSupports);
+        const amount = quoted ? BigInt(quoted.amount) : null;
         return {
           data: {
+            code: 'payments_disabled',
             mode: 'quote-only', outcome: 'payment_required', http_status: 402, url: url.href,
             payment_required: true, payment_submitted: false,
             provider_matches: 'unknown', filters_evaluated: false,
@@ -120,12 +138,13 @@ export class AgentsTrustApi {
               amount: offer.amount, payTo: offer.payTo, maxTimeoutSeconds: offer.maxTimeoutSeconds,
             })),
           },
+          payment: payment('quote', amount === null ? null : usdc(amount)),
           payment_attempt_id: null,
           request_id: response.headers.get('x-at-request-id'),
         };
       }
-      if (this.authorizationUsed) throw new Error('Payment authorization already used in this process. Check your wallet and receipt before granting another process permission.');
-      if (!this.settings.walletKey) throw new Error('Set AGENTS_TRUST_WALLET_PRIVATE_KEY to pay with Base USDC.');
+      if (this.authorizationUsed) throw new PaymentRefusal('authorization_consumed', 'Payment authorization already used in this process. Start a fresh process only after checking your wallet and receipt and obtaining a new owner authorization.');
+      if (!this.settings.walletKey) throw new PaymentRefusal('payments_disabled', 'Set AGENTS_TRUST_WALLET_PRIVATE_KEY to pay with Base USDC. No wallet configured; no payment sent.');
       try {
         const account = privateKeyToAccount(this.settings.walletKey as `0x${string}`);
         const client = new x402Client().register('eip155:8453', new ExactEvmScheme(account));
@@ -138,16 +157,21 @@ export class AgentsTrustApi {
           ? `${ORIGIN}/inspect?url=${encodeURIComponent(`${endpoint.protocol}//${endpoint.host}${endpoint.pathname}${endpoint.search}`)}`
           : url.href;
         const offer = this.select(required, resource);
-        this.spent += BigInt(offer.amount);
+        submittedAmount = BigInt(offer.amount);
+        this.spent += submittedAmount;
         this.authorizationUsed = true;
         const payload = await http.createPaymentPayload({ ...required, accepts: [offer] });
         // Preserve the challenge extensions; never automatically retry an authorization.
         paymentSubmitted = true;
         response = await this.send(url.href, http.encodePaymentSignatureHeader(payload));
       } catch (error) {
+        if (error instanceof PaymentRefusal) throw error;
         if (error instanceof Error && /^(Price exceeds|Session spend cap|No supported Base|Unsupported payment)/.test(error.message)) throw error;
         // Discard upstream error details: they can contain signing inputs.
-        throw new Error('Payment could not complete. Budget remains reserved; check your wallet and receipt before another call.');
+        const message = 'Payment could not complete. Budget remains reserved; check your wallet and receipt before another call.';
+        if (paymentSubmitted) throw new PaymentFailure(message,
+          payment('uncertain', submittedAmount === null ? null : usdc(submittedAmount), null, 'pending'));
+        throw new Error(message);
       }
     }
     // Only this unpaid semantic response is a normal lookup miss. Other HTTP,
@@ -163,21 +187,45 @@ export class AgentsTrustApi {
               url: params.url, payment_required: false, payment_submitted: false,
               message: 'This exact endpoint URL is not indexed by Agents Trust. The lookup was free; no payment authorization was submitted and no provider was called. This says nothing about provider quality or availability and is not a service outage.',
             },
+            payment: payment('free', '0'),
             payment_attempt_id: null,
             request_id: response.headers.get('x-at-request-id'),
           };
         }
       }
     }
-    if (!response.ok) throw new Error(`Agents Trust returned HTTP ${response.status}. No automatic retry was made.`);
-    try {
-      const body: unknown = await response.json();
-      return {
-        data: body,
-        ...(paid ? { evidence_guide: evidenceGuide } : {}),
-        payment_attempt_id: response.headers.get('x-at-payment-attempt-id'),
-        request_id: response.headers.get('x-at-request-id'),
-      };
-    } catch { throw new Error('Agents Trust returned an unreadable response. Check any payment receipt before another call.'); }
+    const attempt = response.headers.get('x-at-payment-attempt-id');
+    // The Worker exposes verified only on its uncharged 200 empty-answer path.
+    // Ordinary charged answers have that header stripped and carry an attempt ID.
+    const explicitFree = response.status === 200 && response.headers.get('x-at-payment-state') === 'verified';
+    const charged = paymentSubmitted && !explicitFree;
+    const settlement = charged
+      ? (response.headers.get('x-at-payment-state') === 'settled' || response.headers.has('payment-response') ? 'settled' : 'pending')
+      : 'not_required';
+    const resultPayment = payment(charged ? 'paid' : 'free', charged && submittedAmount !== null ? usdc(submittedAmount) : '0', attempt, settlement);
+    const fail = (message: string): never => {
+      if (paymentSubmitted) throw new PaymentFailure(message, resultPayment);
+      throw new Error(message);
+    };
+    if (!response.ok) {
+      const message = `Agents Trust returned HTTP ${response.status}. No automatic retry was made.`;
+      if (paymentSubmitted) throw new PaymentFailure(
+        `${message} Payment outcome uncertain; check wallet/receipt before another call.`,
+        payment('uncertain', submittedAmount === null ? null : usdc(submittedAmount), attempt, 'pending'));
+      fail(message);
+    }
+    let body: unknown;
+    try { body = await response.json(); }
+    catch { fail('Agents Trust returned an unreadable response. Check any payment receipt before another call.'); }
+    return {
+      data: body,
+      ...(paid ? {
+        payment: resultPayment,
+        message: charged ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}${settlement === 'pending' ? '; authorization submitted, settlement pending: check receipt' : ''}` : paymentSubmitted ? 'Authorization released, no fee.' : 'Free result; no fee settled.',
+        evidence_guide: evidenceGuide,
+      } : {}),
+      payment_attempt_id: attempt,
+      request_id: response.headers.get('x-at-request-id'),
+    };
   }
 }
