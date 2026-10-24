@@ -48,8 +48,12 @@ function usdc(amount: bigint): string {
 export class PaymentRefusal extends Error {
   constructor(public readonly code: string, message: string, public readonly fee_usdc: string | null = null) { super(message); }
 }
-function payment(state: 'paid' | 'free' | 'quote', fee_usdc: string | null, attempt_id: string | null = null) {
-  return { state, fee_usdc, attempt_id, receipt_tool: attempt_id ? 'receipt' : null };
+function payment(state: 'paid' | 'free' | 'quote', fee_usdc: string | null, attempt_id: string | null = null, settlement?: 'pending' | 'settled' | 'not_required') {
+  return { state, fee_usdc, attempt_id, receipt_tool: attempt_id ? 'receipt' : null, ...(settlement ? { settlement } : {}) };
+}
+type PaymentDetails = ReturnType<typeof payment>;
+export class PaymentFailure extends Error {
+  constructor(message: string, public readonly payment: PaymentDetails) { super(message); }
 }
 
 export class AgentsTrustApi {
@@ -164,7 +168,10 @@ export class AgentsTrustApi {
         if (error instanceof PaymentRefusal) throw error;
         if (error instanceof Error && /^(Price exceeds|Session spend cap|No supported Base|Unsupported payment)/.test(error.message)) throw error;
         // Discard upstream error details: they can contain signing inputs.
-        throw new Error('Payment could not complete. Budget remains reserved; check your wallet and receipt before another call.');
+        const message = 'Payment could not complete. Budget remains reserved; check your wallet and receipt before another call.';
+        if (paymentSubmitted) throw new PaymentFailure(message,
+          payment('paid', submittedAmount === null ? null : usdc(submittedAmount), null, 'pending'));
+        throw new Error(message);
       }
     }
     // Only this unpaid semantic response is a normal lookup miss. Other HTTP,
@@ -187,25 +194,31 @@ export class AgentsTrustApi {
         }
       }
     }
-    if (!response.ok) throw new Error(`Agents Trust returned HTTP ${response.status}. No automatic retry was made.`);
-    try {
-      const body: unknown = await response.json();
-      const attempt = response.headers.get('x-at-payment-attempt-id');
-      const emptyUncharged = path === '/recommend' && body !== null && typeof body === 'object'
-        && 'picks' in body && Array.isArray(body.picks) && body.picks.length === 0
-        && !response.headers.has('payment-response');
-      const settled = paymentSubmitted && !emptyUncharged;
-      const pending = settled && response.headers.get('x-at-payment-state') === 'verified';
-      return {
-        data: body,
-        ...(paid ? {
-          payment: payment(settled ? 'paid' : 'free', settled && submittedAmount !== null ? usdc(submittedAmount) : '0', attempt),
-          message: settled ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}${pending ? '; authorization submitted, settlement pending: check receipt' : ''}` : 'Free result; no fee settled.',
-        } : {}),
-        ...(paid ? { evidence_guide: evidenceGuide } : {}),
-        payment_attempt_id: response.headers.get('x-at-payment-attempt-id'),
-        request_id: response.headers.get('x-at-request-id'),
-      };
-    } catch { throw new Error('Agents Trust returned an unreadable response. Check any payment receipt before another call.'); }
+    const attempt = response.headers.get('x-at-payment-attempt-id');
+    // A missing settlement header or empty body never establishes a free signed call.
+    const explicitFree = response.headers.get('x-at-payment-state') === 'not_required';
+    const charged = paymentSubmitted && !explicitFree;
+    const settlement = charged
+      ? (response.headers.get('x-at-payment-state') === 'settled' || response.headers.has('payment-response') ? 'settled' : 'pending')
+      : 'not_required';
+    const resultPayment = payment(charged ? 'paid' : 'free', charged && submittedAmount !== null ? usdc(submittedAmount) : '0', attempt, settlement);
+    const fail = (message: string): never => {
+      if (paymentSubmitted) throw new PaymentFailure(message, resultPayment);
+      throw new Error(message);
+    };
+    if (!response.ok) fail(`Agents Trust returned HTTP ${response.status}. No automatic retry was made.`);
+    let body: unknown;
+    try { body = await response.json(); }
+    catch { fail('Agents Trust returned an unreadable response. Check any payment receipt before another call.'); }
+    return {
+      data: body,
+      ...(paid ? {
+        payment: resultPayment,
+        message: charged ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}${settlement === 'pending' ? '; authorization submitted, settlement pending: check receipt' : ''}` : 'Free result; no fee settled.',
+        evidence_guide: evidenceGuide,
+      } : {}),
+      payment_attempt_id: attempt,
+      request_id: response.headers.get('x-at-request-id'),
+    };
   }
 }

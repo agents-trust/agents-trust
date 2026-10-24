@@ -27,11 +27,11 @@ it.each(['settled', 'verified'])('labels a paid %s answer with its fee, attempt 
   await expect(api.recommend(params)).rejects.toMatchObject({ code: 'authorization_consumed', message: expect.stringContaining('Start a fresh process') });
   expect(request).toHaveBeenCalledTimes(3);
 });
-it('labels an authorized but unsettled empty answer free', async () => {
+it('preserves pending payment for an authorized empty answer', async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
-    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: { 'x-at-payment-state': 'verified' } }));
+    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: { 'x-at-payment-state': 'verified', 'x-at-payment-attempt-id': 'empty-attempt' } }));
   const result = await new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request).recommend(params);
-  expect(result).toMatchObject({ payment: { state: 'free', fee_usdc: '0' } });
+  expect(result).toMatchObject({ payment: { state: 'paid', settlement: 'pending', fee_usdc: '0.01', attempt_id: 'empty-attempt', receipt_tool: 'receipt' } });
 });
 it('reports the quoted price and cap without signing', async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValue(challenge());
@@ -55,4 +55,27 @@ it('uses the quoted fee and never exposes a catalog preview from a quote body', 
   expect(result.data).not.toHaveProperty('preview');
   expect(JSON.stringify(result)).not.toContain('must not leak');
   expect(request).toHaveBeenCalledTimes(1);
+});
+
+it('requires an explicit server signal to label a signed answer free', async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
+    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: { 'x-at-payment-state': 'not_required' } }));
+  const result = await new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request).recommend(params);
+  expect(result).toMatchObject({ payment: { state: 'free', fee_usdc: '0', settlement: 'not_required' } });
+});
+it.each(['verified', null])('keeps empty signed responses pending when payment state is %s', async state => {
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
+    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: state ? { 'x-at-payment-state': state } : {} }));
+  const result = await new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request).recommend(params);
+  expect(result).toMatchObject({ payment: { state: 'paid', fee_usdc: '0.01', settlement: 'pending' } });
+});
+it.each(['http-error', 'unreadable'])('preserves receipt access after signing on %s', async failure => {
+  const headers = { 'x-at-payment-attempt-id': 'recoverable-attempt', 'x-at-payment-state': 'verified' };
+  const response = failure === 'http-error' ? new Response(null, { status: 500, headers }) : new Response('invalid json', { headers });
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge()).mockResolvedValueOnce(response);
+  const api = new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request);
+  await expect(api.recommend(params)).rejects.toMatchObject({ payment: {
+    state: 'paid', fee_usdc: '0.01', settlement: 'pending', attempt_id: 'recoverable-attempt', receipt_tool: 'receipt',
+  } });
+  expect(request).toHaveBeenCalledTimes(2);
 });

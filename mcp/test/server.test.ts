@@ -90,7 +90,36 @@ it('returns a machine-readable fee-cap refusal through MCP', async () => {
     const result = await client.callTool({ name: 'recommend', arguments: { need: 'weather' } });
     expect(result.isError).toBe(true);
     expect(JSON.parse((result.content as { text: string }[])[0]!.text)).toMatchObject({ code: 'fee_cap_exceeded',
-      payment: { state: 'quote', fee_usdc: '0.01' } });
+      payment: { state: 'refused', fee_usdc: '0.01' } });
     expect(request).toHaveBeenCalledTimes(1);
+  } finally { await client.close(); await server.close(); }
+});
+
+it.each(['http-error', 'unreadable', 'authorization_consumed'])('serializes payment recovery or refusal for %s through MCP', async failure => {
+  const terms = { ...fixture, resource: { ...fixture.resource, url: 'https://api.agents-trust.com/recommend?need=weather' } };
+  const challenge = () => new Response(null, { status: 402, headers: {
+    'payment-required': Buffer.from(JSON.stringify(terms)).toString('base64'),
+  } });
+  const headers = { 'x-at-payment-attempt-id': 'recoverable-attempt', 'x-at-payment-state': 'verified' };
+  const response = failure === 'http-error' ? new Response(null, { status: 500, headers })
+    : failure === 'unreadable' ? new Response('invalid json', { headers }) : Response.json({ picks: [] }, { headers });
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge()).mockResolvedValueOnce(response).mockResolvedValue(challenge());
+  const server = createServer({ enablePayments: true, walletKey: generatePrivateKey() }, request);
+  const client = new Client({ name: 'recovery', version: '1' });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  try {
+    await server.connect(a); await client.connect(b);
+    let result = await client.callTool({ name: 'recommend', arguments: { need: 'weather' } });
+    if (failure === 'authorization_consumed') result = await client.callTool({ name: 'recommend', arguments: { need: 'weather' } });
+    expect(result.isError).toBe(true);
+    const body = JSON.parse((result.content as { text: string }[])[0]!.text);
+    if (failure === 'authorization_consumed') {
+      expect(body).toMatchObject({ code: 'authorization_consumed', payment: { state: 'refused', fee_usdc: null } });
+    } else {
+      expect(body).toMatchObject({ payment_attempt_id: 'recoverable-attempt', payment: {
+        state: 'paid', settlement: 'pending', fee_usdc: '0.01', attempt_id: 'recoverable-attempt', receipt_tool: 'receipt',
+      } });
+    }
+    expect(request.mock.calls.filter(([, init]) => init?.headers)).toHaveLength(1);
   } finally { await client.close(); await server.close(); }
 });
