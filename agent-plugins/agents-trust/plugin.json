@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agents-trust",
   "version": "0.1.0",
-  "description": "Recommend which x402 API to use and inspect endpoint evidence. Quotes by default; optional owner-funded calls require Hermes approval.",
+  "description": "Recommend which x402 API to use and inspect endpoint evidence. Quotes by default; optional owner-funded calls need Allow Once approval for each call.",
   "author": {
     "name": "Intentra Labs",
     "url": "https://agents-trust.com"

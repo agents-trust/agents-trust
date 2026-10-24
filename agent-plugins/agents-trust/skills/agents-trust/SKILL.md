@@ -12,9 +12,10 @@ answers; a quote for another task is not an answer or evidence of matches.
 Read the fee from the quote. Never interpret illustrative discovery metadata
 as a recommendation.
 
-Hermes marks this server untrusted and prompts before Recommend/Inspect. Get
-the wallet owner's approval for each paying call, naming the task and maximum
-Agents Trust fee. Do not suppress approval, change trust, enable payments,
+Hermes marks this server untrusted and prompts before Recommend/Inspect, but
+Session and Always grants, YOLO or `approvals.mode: off` skip later prompts.
+Each paying call needs **Allow Once** from the wallet owner, naming the task and
+maximum Agents Trust fee; keep payments disabled whenever approvals can be skipped. Do not suppress approval, change trust, enable payments,
 increase caps, configure a key or start a fresh payment process on the model's
 own initiative. An absent approval surface is a reason to stop paying work.
 
