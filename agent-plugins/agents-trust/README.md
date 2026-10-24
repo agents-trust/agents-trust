@@ -2,7 +2,7 @@
 
 This Agent Plugins v1 package supplies an MCP launcher and a focused API-choice
 skill. It starts the separately installed `agents-trust-mcp` executable; it
-never downloads or installs code at runtime. This launcher supports Linux and macOS; Node20.19+, 22.13+ or24 is required.
+never downloads or installs code at runtime. This launcher supports Linux and macOS; Node 20.19+, 22.13+ or 24 is required.
 
 ## Install
 
@@ -30,7 +30,7 @@ installing; a future catalog entry must pin its full 40-character SHA.
 Quotes are the default, including with a wallet present. The owner may supply
 AGENTS_TRUST_WALLET_PRIVATE_KEY and explicitly grant
 AGENTS_TRUST_ENABLE_PAYMENTS=true, with AGENTS_TRUST_MAX_CALL_USDC and
-AGENTS_TRUST_SESSION_CAP_USDC (both default0.01). Never put keys in this package.
+AGENTS_TRUST_SESSION_CAP_USDC (both default 0.01). Never put keys in this package.
 Hermes forwards only the declared optional variables. The plugin marks its
 server `untrusted`; Recommend/Inspect declare `readOnlyHint: false`, so Hermes
 asks before every such call, including quote calls. Read the live quote first
