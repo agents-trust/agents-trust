@@ -48,7 +48,7 @@ function usdc(amount: bigint): string {
 export class PaymentRefusal extends Error {
   constructor(public readonly code: string, message: string, public readonly fee_usdc: string | null = null) { super(message); }
 }
-function payment(state: 'paid' | 'free' | 'quote', fee_usdc: string | null, attempt_id: string | null = null, settlement?: 'pending' | 'settled' | 'not_required') {
+function payment(state: 'paid' | 'free' | 'quote' | 'uncertain', fee_usdc: string | null, attempt_id: string | null = null, settlement?: 'pending' | 'settled' | 'not_required') {
   return { state, fee_usdc, attempt_id, receipt_tool: attempt_id ? 'receipt' : null, ...(settlement ? { settlement } : {}) };
 }
 type PaymentDetails = ReturnType<typeof payment>;
@@ -170,7 +170,7 @@ export class AgentsTrustApi {
         // Discard upstream error details: they can contain signing inputs.
         const message = 'Payment could not complete. Budget remains reserved; check your wallet and receipt before another call.';
         if (paymentSubmitted) throw new PaymentFailure(message,
-          payment('paid', submittedAmount === null ? null : usdc(submittedAmount), null, 'pending'));
+          payment('uncertain', submittedAmount === null ? null : usdc(submittedAmount), null, 'pending'));
         throw new Error(message);
       }
     }
@@ -195,8 +195,9 @@ export class AgentsTrustApi {
       }
     }
     const attempt = response.headers.get('x-at-payment-attempt-id');
-    // A missing settlement header or empty body never establishes a free signed call.
-    const explicitFree = response.headers.get('x-at-payment-state') === 'not_required';
+    // The Worker exposes verified only on its uncharged 200 empty-answer path.
+    // Ordinary charged answers have that header stripped and carry an attempt ID.
+    const explicitFree = response.status === 200 && response.headers.get('x-at-payment-state') === 'verified';
     const charged = paymentSubmitted && !explicitFree;
     const settlement = charged
       ? (response.headers.get('x-at-payment-state') === 'settled' || response.headers.has('payment-response') ? 'settled' : 'pending')
@@ -206,7 +207,13 @@ export class AgentsTrustApi {
       if (paymentSubmitted) throw new PaymentFailure(message, resultPayment);
       throw new Error(message);
     };
-    if (!response.ok) fail(`Agents Trust returned HTTP ${response.status}. No automatic retry was made.`);
+    if (!response.ok) {
+      const message = `Agents Trust returned HTTP ${response.status}. No automatic retry was made.`;
+      if (paymentSubmitted) throw new PaymentFailure(
+        `${message} Payment outcome uncertain; check wallet/receipt before another call.`,
+        payment('uncertain', submittedAmount === null ? null : usdc(submittedAmount), attempt, 'pending'));
+      fail(message);
+    }
     let body: unknown;
     try { body = await response.json(); }
     catch { fail('Agents Trust returned an unreadable response. Check any payment receipt before another call.'); }
@@ -214,7 +221,7 @@ export class AgentsTrustApi {
       data: body,
       ...(paid ? {
         payment: resultPayment,
-        message: charged ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}${settlement === 'pending' ? '; authorization submitted, settlement pending: check receipt' : ''}` : 'Free result; no fee settled.',
+        message: charged ? `paid ${usdc(submittedAmount!)} USDC, attempt ${attempt ?? 'unknown'}${settlement === 'pending' ? '; authorization submitted, settlement pending: check receipt' : ''}` : paymentSubmitted ? 'Authorization released, no fee.' : 'Free result; no fee settled.',
         evidence_guide: evidenceGuide,
       } : {}),
       payment_attempt_id: attempt,

@@ -17,21 +17,22 @@ it('labels disabled-payment quotes distinctly', async () => {
   const result = await new AgentsTrustApi({}, vi.fn<typeof fetch>().mockResolvedValue(challenge())).recommend(params);
   expect(result).toMatchObject({ payment: { state: 'quote', fee_usdc: '0.01' }, data: { code: 'payments_disabled' } });
 });
-it.each(['settled', 'verified'])('labels a paid %s answer with its fee, attempt and receipt tool and preserves the one-use grant', async state => {
+it.each([false, true])('labels a paid answer (settlement receipt %s) and preserves the one-use grant', async settled => {
   const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
-    .mockResolvedValueOnce(Response.json({ picks: [{}] }, { headers: { 'x-at-payment-attempt-id': 'test-attempt', 'x-at-payment-state': state } }))
+    .mockResolvedValueOnce(Response.json({ picks: [{}] }, { headers: { 'x-at-payment-attempt-id': 'test-attempt', ...(settled ? { 'payment-response': 'receipt' } : {}) } }))
     .mockResolvedValueOnce(challenge());
   const api = new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request);
-  expect(await api.recommend(params)).toMatchObject({ payment: { state: 'paid', fee_usdc: '0.01', attempt_id: 'test-attempt', receipt_tool: 'receipt' },
+  expect(await api.recommend(params)).toMatchObject({ payment: { state: 'paid', fee_usdc: '0.01', attempt_id: 'test-attempt', receipt_tool: 'receipt', settlement: settled ? 'settled' : 'pending' },
     message: expect.stringContaining('paid 0.01 USDC, attempt test-attempt') });
   await expect(api.recommend(params)).rejects.toMatchObject({ code: 'authorization_consumed', message: expect.stringContaining('Start a fresh process') });
   expect(request).toHaveBeenCalledTimes(3);
 });
-it('preserves pending payment for an authorized empty answer', async () => {
+it('labels the Worker verified empty answer uncharged', async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
-    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: { 'x-at-payment-state': 'verified', 'x-at-payment-attempt-id': 'empty-attempt' } }));
+    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: { 'x-at-payment-state': 'verified' } }));
   const result = await new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request).recommend(params);
-  expect(result).toMatchObject({ payment: { state: 'paid', settlement: 'pending', fee_usdc: '0.01', attempt_id: 'empty-attempt', receipt_tool: 'receipt' } });
+  expect(result).toMatchObject({ payment: { state: 'free', settlement: 'not_required', fee_usdc: '0', attempt_id: null, receipt_tool: null },
+    message: 'Authorization released, no fee.' });
 });
 it('reports the quoted price and cap without signing', async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValue(challenge());
@@ -57,22 +58,26 @@ it('uses the quoted fee and never exposes a catalog preview from a quote body', 
   expect(request).toHaveBeenCalledTimes(1);
 });
 
-it('requires an explicit server signal to label a signed answer free', async () => {
+it.each([{ picks: [] }, { picks: [{}] }])('keeps a signed 200 without a state header pending regardless of picks: $picks', async ({ picks }) => {
   const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
-    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: { 'x-at-payment-state': 'not_required' } }));
+    .mockResolvedValueOnce(Response.json({ picks }, { headers: { 'x-at-payment-attempt-id': 'test-attempt' } }));
   const result = await new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request).recommend(params);
-  expect(result).toMatchObject({ payment: { state: 'free', fee_usdc: '0', settlement: 'not_required' } });
+  expect(result).toMatchObject({ payment: { state: 'paid', fee_usdc: '0.01', settlement: 'pending',
+    attempt_id: 'test-attempt', receipt_tool: 'receipt' } });
 });
-it.each(['verified', null])('keeps empty signed responses pending when payment state is %s', async state => {
+it('reports an uncertain payment after a signed non-2xx without inventing receipt access', async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
-    .mockResolvedValueOnce(Response.json({ picks: [] }, { headers: state ? { 'x-at-payment-state': state } : {} }));
-  const result = await new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request).recommend(params);
-  expect(result).toMatchObject({ payment: { state: 'paid', fee_usdc: '0.01', settlement: 'pending' } });
+    .mockResolvedValueOnce(new Response(null, { status: 500 }));
+  const api = new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request);
+  await expect(api.recommend(params)).rejects.toMatchObject({
+    message: expect.stringContaining('check wallet/receipt'),
+    payment: { state: 'uncertain', fee_usdc: '0.01', settlement: 'pending', attempt_id: null, receipt_tool: null },
+  });
+  expect(request).toHaveBeenCalledTimes(2);
 });
-it.each(['http-error', 'unreadable'])('preserves receipt access after signing on %s', async failure => {
-  const headers = { 'x-at-payment-attempt-id': 'recoverable-attempt', 'x-at-payment-state': 'verified' };
-  const response = failure === 'http-error' ? new Response(null, { status: 500, headers }) : new Response('invalid json', { headers });
-  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge()).mockResolvedValueOnce(response);
+it('preserves the attempt ID when a charged response body is unreadable', async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(challenge())
+    .mockResolvedValueOnce(new Response('invalid json', { headers: { 'x-at-payment-attempt-id': 'recoverable-attempt' } }));
   const api = new AgentsTrustApi({ enablePayments: true, walletKey: generatePrivateKey() }, request);
   await expect(api.recommend(params)).rejects.toMatchObject({ payment: {
     state: 'paid', fee_usdc: '0.01', settlement: 'pending', attempt_id: 'recoverable-attempt', receipt_tool: 'receipt',
