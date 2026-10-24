@@ -17,7 +17,7 @@ rather than an individual GitHub account's organization role. `mcpName` in
 `@agents-trust/mcp`. The repository and subfolder point to this public repo.
 There is no second registry file in the package.
 
-After merge and the field test, Hans can authorize release. For domain proof:
+After merge and the field test, the operator can authorize release. For domain proof:
 
 1. With OpenSSL 3, generate an Ed25519 publisher key into protected local storage
    (`openssl genpkey -algorithm Ed25519 -out /secure/path/mcp-publisher.pem`;
@@ -60,7 +60,7 @@ Source: [official registry authentication](https://github.com/modelcontextprotoc
   throwaway key and mocked HTTP. It makes no payment and reads no wallet variable.
 
 Store login/submission, domain proof, npm and registry publication, repository
-settings/topics and private-repo archival remain Hans's later actions. Terms,
+settings/topics and private-repo archival remain the operator's later actions. Terms,
 privacy/operator pages, Anthropic permission for the paying mode and a Hermes
 per-payment approval integration remain account/product prerequisites from
 [issue #3](https://github.com/agents-trust/agents-trust/issues/3); this PR does

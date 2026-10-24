@@ -1,12 +1,11 @@
-# Claude directory submission
+# Claude integration disclosure
 
-Submit the reviewed readable plugin bundle at https://claude.ai/directory/manage.
 The server runs locally over stdio; this repository does not offer a hosted
 connector. Build `mcp/` in the installed checkout before enabling the plugin.
 
 The README's “What the MCP integration runs and sends” section and the MCP
 README's “Host installation and data disclosure” section are the runtime
-disclosures. Include these with the submission:
+disclosures:
 
 - Operator: Intentra Labs, Zug, Switzerland; hello@agents-trust.com.
 - Terms: https://agents-trust.com/terms/; privacy: https://agents-trust.com/privacy/.
@@ -23,13 +22,3 @@ disclosures. Include these with the submission:
   settlement exposes on-chain addresses and amounts. The private key remains
   local. Provider calls and payments are separate and are never made by this MCP.
 - Rankings are not paid placements. A fee does not buy a provider's position.
-
-The operator must obtain written paying-mode permission from directory@anthropic.com
-before enabling that mode in the directory. A quote-only default, caps and a
-published privacy notice do not establish that permission. This PR makes no
-claim of directory submission, acceptance or policy approval. See the current
-account checklist in https://github.com/agents-trust/agents-trust/issues/3.
-
-Primary policy checked 2026-10-23:
-https://support.claude.com/en/articles/13145358-anthropic-software-directory-policy
-(§3A privacy; §4A written permission for financial transactions).

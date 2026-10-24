@@ -156,7 +156,5 @@ For directory reviewers: the operator is **Intentra Labs, Zug, Switzerland**;
 [terms](https://agents-trust.com/terms/) and
 [privacy](https://agents-trust.com/privacy/) describe the service and request
 logging. Only `weather`, `crypto prices` and `web search` are free Recommend
-examples; other unpaid calls return a quote without an open catalog preview.
-See the [Claude submission disclosure](docs/claude-directory.md). Paying-mode
-permission from directory@anthropic.com and directory acceptance are pending;
-the quote-only default does not imply approval of crypto transfers.
+examples; other Recommend needs return a quote with no preview.
+See the [Claude integration disclosure](docs/claude-directory.md).
