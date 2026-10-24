@@ -17,7 +17,7 @@ rather than an individual GitHub account's organization role. `mcpName` in
 `@agents-trust/mcp`. The repository and subfolder point to this public repo.
 There is no second registry file in the package.
 
-After merge and the field test, Hans can authorize release. For domain proof:
+After merge and the field test, the operator can authorize release. For domain proof:
 
 1. With OpenSSL 3, generate an Ed25519 publisher key into protected local storage
    (`openssl genpkey -algorithm Ed25519 -out /secure/path/mcp-publisher.pem`;
@@ -43,7 +43,7 @@ before merge.
 
 Source: [official registry authentication](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/authentication.mdx).
 
-## Store packaging and remaining account actions
+## Store packaging
 
 - Gemini discovers `skills/` and launches the built server using `${extensionPath}`.
   [Extension reference](https://geminicli.com/docs/extensions/reference/).
@@ -58,22 +58,3 @@ Source: [official registry authentication](https://github.com/modelcontextprotoc
 - CI checks Node 20/22/24 without a wallet, live payment or opt-in paid test.
   `npm run test:paid` is a separate **offline** cryptographic test with a generated
   throwaway key and mocked HTTP. It makes no payment and reads no wallet variable.
-
-Store login/submission, domain proof, npm and registry publication, repository
-settings/topics and private-repo archival remain Hans's later actions. Terms,
-privacy/operator pages, Anthropic permission for the paying mode and a Hermes
-per-payment approval integration remain account/product prerequisites from
-[issue #3](https://github.com/agents-trust/agents-trust/issues/3); this PR does
-not claim store acceptance or replace those decisions. Field test first.
-
-## Hermes field-test fixes on PR #4
-
-The first field test at `480e4a976` found seven tool-facing problems. The follow-up
-makes unsearched quotes and unknown matches explicit, limits quoted payment offers
-to supported Base USDC, supplies fee/demo/wallet-owner configuration in tools/list,
-explains CAIP-2/live/provider-price semantics, treats confirmed unpaid unindexed
-URLs as normal not_found results, adds plain evidence meanings without changing
-API data, and exposes runtime input bounds in field descriptions. Offline
-regressions cover each finding, including preservation of genuine error paths
-and of the consumed grant after a signed 404. The natural-task rerun and live
-payment field test remain separate evidence from these automated checks.

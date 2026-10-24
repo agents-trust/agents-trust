@@ -151,3 +151,10 @@ See the [full runtime and payment disclosure](mcp/README.md#host-installation-an
 **Rankings are not paid placements.** No fee buys a provider's position.
 [Release notes](docs/mcp-release.md) describe the registry identity, proof step
 and account work deferred until after merge and the field test.
+
+For directory reviewers: the operator is **Intentra Labs, Zug, Switzerland**;
+[terms](https://agents-trust.com/terms/) and
+[privacy](https://agents-trust.com/privacy/) describe the service and request
+logging. Only `weather`, `crypto prices` and `web search` are free Recommend
+examples; other Recommend needs return a quote with no preview.
+See the [Claude integration disclosure](docs/claude-directory.md).
