@@ -1,13 +1,25 @@
 ---
 name: agents-trust
-description: API search and recommendations. Find a paid API for a task. Use when an agent needs a callable x402-paid API (web search, weather, token prices, geocoding, document extraction, blockchain data, or any other work) and wants ranked candidates with price, payment network, how to call each one, and live payment-challenge evidence instead of a catalog listing. Agents Trust Recommend is one paid GET at 0.01 USDC per query on Base or Solana. Do not use it to call or pay the provider for you; it only recommends.
+description: "Find which paid x402 API to call for a task (web search, weather, token prices, geocoding, documents, blockchain data, anything else): ranked picks with price, network, how to call and live evidence. One GET, 0.01 USDC on Base, Solana or Algorand. It recommends; it never pays providers."
 metadata:
   openclaw:
+    homepage: https://agents-trust.com/docs/
     envVars:
-      - AGENTS_TRUST_WALLET_PRIVATE_KEY
-      - AGENTS_TRUST_ENABLE_PAYMENTS
-      - AGENTS_TRUST_MAX_CALL_USDC
-      - AGENTS_TRUST_SESSION_CAP_USDC
+      - name: AGENTS_TRUST_WALLET_PRIVATE_KEY
+        required: false
+        description: Optional Base USDC wallet key for the @agents-trust/mcp server. Stays local; payments also need AGENTS_TRUST_ENABLE_PAYMENTS=true.
+      - name: AGENTS_TRUST_ENABLE_PAYMENTS
+        required: false
+        description: Set to true to allow one owner-authorized payment per MCP server process. Off by default.
+      - name: AGENTS_TRUST_MAX_CALL_USDC
+        required: false
+        description: Per-call fee cap for the MCP server, default 0.01.
+      - name: AGENTS_TRUST_SESSION_CAP_USDC
+        required: false
+        description: Per-process spending cap for the MCP server, default 0.01.
+      - name: EVM_PRIVATE_KEY
+        required: false
+        description: Optional wallet key read only by the paid client examples in references/payment-flow.md to sign locally; never sent.
   homepage: https://agents-trust.com/docs/
   api: https://api.agents-trust.com
   openapi: https://api.agents-trust.com/openapi.json
