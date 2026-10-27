@@ -2,13 +2,16 @@
   "name": "agents-trust",
   "displayName": "Agents Trust",
   "version": "0.1.0",
-  "description": "Find APIs and inspect endpoint evidence. Quote-only by default; paid mode needs explicit wallet-owner opt-in.",
+  "description": "Find which paid x402 API to call for a task, with live evidence. Free demo for weather, crypto prices and web search; other answers return a 0.01 USDC quote and pay only after wallet-owner opt-in.",
   "author": {
     "name": "Agents Trust",
     "email": "hello@agents-trust.com",
     "url": "https://agents-trust.com"
   },
   "homepage": "https://agents-trust.com/docs/",
+  "privacyPolicyUrl": "https://agents-trust.com/privacy/",
+  "termsOfServiceUrl": "https://agents-trust.com/terms/",
+  "supportUrl": "https://agents-trust.com/docs/",
   "repository": "https://github.com/agents-trust/agents-trust",
   "license": "MIT",
   "keywords": [
@@ -24,7 +27,8 @@
       "title": "Wallet private key",
       "description": "Optional Base USDC wallet key; payments also require explicit owner opt-in.",
       "sensitive": true,
-      "required": false
+      "required": false,
+      "default": ""
     },
     "max_call_usdc": {
       "type": "string",
