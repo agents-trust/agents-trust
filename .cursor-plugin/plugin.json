@@ -1,0 +1,37 @@
+{
+  "name": "agents-trust",
+  "version": "0.1.0",
+  "description": "Find APIs and inspect endpoint evidence. Quote-only by default.",
+  "skills": "./skills/",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "AGENTS_TRUST_WALLET_PRIVATE_KEY": {
+        "type": "string",
+        "title": "Optional Base wallet private key",
+        "description": "Optional. Supply through secure host configuration; never put a key in chat or source control."
+      },
+      "AGENTS_TRUST_MAX_CALL_USDC": {
+        "type": "string",
+        "title": "Maximum fee per call (USDC)",
+        "default": "0.01"
+      },
+      "AGENTS_TRUST_SESSION_CAP_USDC": {
+        "type": "string",
+        "title": "Per-process reservation cap (USDC)",
+        "default": "0.01"
+      },
+      "AGENTS_TRUST_ENABLE_PAYMENTS": {
+        "type": "string",
+        "title": "Owner grant for one authorization",
+        "description": "Exact true allows one authorization per process, even if it fails. No per-call confirmation. Restart resets the grant.",
+        "default": "false",
+        "enum": [
+          "false",
+          "true"
+        ]
+      }
+    },
+    "required": []
+  }
+}

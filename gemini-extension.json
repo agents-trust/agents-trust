@@ -1,0 +1,14 @@
+{
+  "name": "agents-trust",
+  "version": "0.1.0",
+  "description": "Discover which x402 API to use for a task and inspect endpoint evidence. Quotes by default; Three fixed demo needs are free.",
+  "mcpServers": {
+    "agents-trust": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@agents-trust/mcp"
+      ]
+    }
+  }
+}

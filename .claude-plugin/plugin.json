@@ -1,0 +1,48 @@
+{
+  "name": "agents-trust",
+  "displayName": "Agents Trust",
+  "version": "0.1.0",
+  "description": "Find APIs and inspect endpoint evidence. Quote-only by default; paid mode needs explicit wallet-owner opt-in.",
+  "author": {
+    "name": "Agents Trust",
+    "email": "hello@agents-trust.com",
+    "url": "https://agents-trust.com"
+  },
+  "homepage": "https://agents-trust.com/docs/",
+  "repository": "https://github.com/agents-trust/agents-trust",
+  "license": "MIT",
+  "keywords": [
+    "x402",
+    "api-discovery",
+    "paid-api",
+    "recommend",
+    "mcp"
+  ],
+  "userConfig": {
+    "wallet_key": {
+      "type": "string",
+      "title": "Wallet private key",
+      "description": "Optional Base USDC wallet key; payments also require explicit owner opt-in.",
+      "sensitive": true,
+      "required": false
+    },
+    "max_call_usdc": {
+      "type": "string",
+      "title": "Maximum fee (USDC)",
+      "description": "Maximum Recommend or Inspect fee",
+      "default": "0.01"
+    },
+    "session_cap_usdc": {
+      "type": "string",
+      "title": "Session cap (USDC)",
+      "description": "Per-process reservation cap",
+      "default": "0.01"
+    },
+    "enable_payments": {
+      "type": "boolean",
+      "title": "Allow one payment authorization",
+      "description": "Owner grant for one authorization per process, including failed or uncertain submissions. Restarting resets this grant. No per-call confirmation.",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "agents-trust": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@agents-trust/mcp"
+      ],
+      "env": {
+        "AGENTS_TRUST_WALLET_PRIVATE_KEY": "${AGENTS_TRUST_WALLET_PRIVATE_KEY}",
+        "AGENTS_TRUST_MAX_CALL_USDC": "${AGENTS_TRUST_MAX_CALL_USDC}",
+        "AGENTS_TRUST_SESSION_CAP_USDC": "${AGENTS_TRUST_SESSION_CAP_USDC}",
+        "AGENTS_TRUST_ENABLE_PAYMENTS": "${AGENTS_TRUST_ENABLE_PAYMENTS}"
+      }
+    }
+  }
+}
