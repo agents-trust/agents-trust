@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@agents-trust/mcp"
+        "@agents-trust/mcp@0.1.4"
       ],
       "env": {
         "AGENTS_TRUST_WALLET_PRIVATE_KEY": "${user_config.wallet_key}",
