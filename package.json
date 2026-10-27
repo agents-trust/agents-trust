@@ -1,0 +1,10 @@
+{
+  "name": "agents-trust-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pins the Agents Trust MCP server that .mcp.json starts.",
+  "license": "MIT",
+  "dependencies": {
+    "@agents-trust/mcp": "0.1.4"
+  }
+}
