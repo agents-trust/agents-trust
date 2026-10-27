@@ -8,10 +8,11 @@
     "email": "hello@agents-trust.com",
     "url": "https://agents-trust.com"
   },
-  "homepage": "https://agents-trust.com/docs/",
+  "homepage": "https://agents-trust.com/",
   "privacyPolicyUrl": "https://agents-trust.com/privacy/",
   "termsOfServiceUrl": "https://agents-trust.com/terms/",
   "supportUrl": "https://agents-trust.com/docs/",
+  "documentationUrl": "https://agents-trust.com/docs/",
   "repository": "https://github.com/agents-trust/agents-trust",
   "license": "MIT",
   "keywords": [
